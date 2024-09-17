@@ -1,0 +1,9 @@
+stproject - a toy rom patching project
+
+This repo aims to patch The Legend of Zelda Spirit Tracks for the Nintendo DS.
+
+* place an EU version of the rom as rom.nds at the root of the repo
+* add it to the git tree with git --intent-to-add
+* build the bundle derivation with nix build .#bundle --impure
+
+The patched rom is in the result directory.
