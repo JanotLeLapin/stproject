@@ -18,7 +18,11 @@
   in {
     packages = eachSystem ({ pkgs, ... }: rec {
       extract = pkgs.callPackage ./extract.nix { stproject-rom = originalRom; };
-      bundle = pkgs.callPackage ./bundle.nix { stproject-extract = extract; };
+      patch = pkgs.callPackage ./patch.nix { stproject-extract = extract; };
+      bundle = pkgs.callPackage ./bundle.nix {
+        stproject-extract = extract;
+        stproject-patch = patch;
+      };
     });
   };
 }

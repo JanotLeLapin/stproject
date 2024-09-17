@@ -1,4 +1,5 @@
 { stproject-extract
+, stproject-patch
 , ndstool
 , stdenv
 }: stdenv.mkDerivation {
@@ -10,6 +11,8 @@
   nativeBuildInputs = [ ndstool ];
 
   buildPhase = ''
+    cp ${stproject-patch}/data/French/Message/select.bmg data/French/Message/select.bmg
+
     mkdir -p $out
     ndstool -c $out/rom.nds \
       -9 arm9.bin \
