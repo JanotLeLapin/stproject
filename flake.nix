@@ -16,6 +16,7 @@
     in (fn { inherit system pkgs; }));
     originalRom = ./rom.nds;
   in {
+    devShells = eachSystem ({ pkgs, ... }: { default = pkgs.callPackage ./shell.nix {}; });
     packages = eachSystem ({ pkgs, ... }: rec {
       bmg = pkgs.callPackage ./bmg {};
 
