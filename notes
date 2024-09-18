@@ -1,0 +1,4 @@
+* 1a00 08ff 0000 0300 -> blue start
+* 1a00 08ff 0000 0200 -> green start
+* 1a00 08ff 0000 0000 -> color end
+* 1a00 06fe 0000 -> player name
