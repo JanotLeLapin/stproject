@@ -17,7 +17,13 @@
     originalRom = ./rom.nds;
   in {
     packages = eachSystem ({ pkgs, ... }: rec {
+      bmg = pkgs.callPackage ./bmg {};
+
       extract = pkgs.callPackage ./extract.nix { stproject-rom = originalRom; };
+      disassemble = pkgs.callPackage ./disassemble.nix {
+        stproject-extract = extract;
+        stproject-bmg = bmg;
+      };
       patch = pkgs.callPackage ./patch.nix { stproject-extract = extract; };
       bundle = pkgs.callPackage ./bundle.nix {
         stproject-extract = extract;
