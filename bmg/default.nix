@@ -10,6 +10,6 @@
 
   buildPhase = ''
     mkdir -p $out/bin
-    gcc main.c -o $out/bin/stproject-bmg
+    gcc main.c encode.c decode.c -o $out/bin/stproject-bmg
   '';
 }
