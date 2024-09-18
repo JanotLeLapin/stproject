@@ -79,7 +79,7 @@ decode(void *f)
           printf("\\\"");
           break;
         case 0x0a:
-          putchar('\n');
+          printf("<br>");
           break;
         case 0x1a:
           printf("<bin");
