@@ -36,7 +36,7 @@ encode(void *in, void *out)
   char buf[256];
   char flags_buf[16];
   char c;
-  size_t i, msg_i;
+  size_t i, msg_i, start;
   struct Message msg;
   struct MessageVec vec = {
     .ptr = malloc(sizeof(struct Message) * 128),
@@ -76,6 +76,22 @@ encode(void *in, void *out)
           msg.content[msg_i + 1] = 0x00;
           msg_i += 2;
           i += 2;
+          break;
+        case '<':
+          start = i;
+          do {
+            i++;
+          } while (' ' != buf[i] && '>' != buf[i]);
+
+          if (!strncmp(buf + start, "<br>", 4)) {
+            msg.content[msg_i] = 0x0a;
+            msg.content[msg_i + 1] = 0x00;
+            i++;
+            msg_i += 2;
+          } else if (!strncmp(buf + start, "<bin", 4)) {
+            // process bin
+          }
+
           break;
         default:
           msg.content[msg_i] = buf[i];
