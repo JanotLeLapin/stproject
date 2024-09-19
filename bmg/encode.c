@@ -89,7 +89,17 @@ encode(void *in, void *out)
             i++;
             msg_i += 2;
           } else if (!strncmp(buf + start, "<bin", 4)) {
-            // process bin
+            while ('>' != buf[i]) {
+              flags_buf[0] = buf[i + 1];
+              flags_buf[1] = buf[i + 2];
+              flags_buf[2] = '\0';
+
+              msg.content[msg_i] = strtol(flags_buf, NULL, 16);
+
+              i += 3;
+              msg_i++;
+            }
+            i++;
           }
 
           break;
