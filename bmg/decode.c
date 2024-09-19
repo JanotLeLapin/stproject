@@ -22,7 +22,7 @@ read_int(char *buf, char bytes)
 }
 
 void
-decode(void *f)
+decode(void *in, void *out)
 {
   char *buf = malloc(32);
   struct Message *messages;
@@ -31,17 +31,17 @@ decode(void *f)
   unsigned short message_count, data_size, inf_block_size;
   unsigned int file_size, section_count, inf_section_size, message_offset, message_data, dat_section_size;
 
-  fread(buf, 1, 32, f);
+  fread(buf, 1, 32, in);
   file_size = (unsigned int) read_int(buf + 8, 4);
   section_count = (unsigned int) read_int(buf + 12, 4);
   encoding = buf[16] - 1;
-  // printf("HEADER\nfile size: %d\nsections: %d\nencoding: %s\n", file_size, section_count, encodings[encoding]);
+  // fprintf(out, "HEADER\nfile size: %d\nsections: %d\nencoding: %s\n", file_size, section_count, encodings[encoding]);
 
-  fread(buf, 1, 16, f);
+  fread(buf, 1, 16, in);
   inf_section_size = (unsigned int) read_int(buf + 4, 4);
   message_count = (unsigned short) read_int(buf + 8, 2);
   inf_block_size = (unsigned short) read_int(buf + 10, 2);
-  // printf("INF1\nsection size: %d\nmessages: %d\ndata size: %d\n", inf_section_size, message_count, inf_block_size);
+  // fprintf(out, "INF1\nsection size: %d\nmessages: %d\ndata size: %d\n", inf_section_size, message_count, inf_block_size);
 
   if (buf_size <= inf_section_size - 16) {
     buf_size = inf_section_size - 16;
@@ -49,7 +49,7 @@ decode(void *f)
   }
   messages = malloc(8 * message_count);
 
-  fread(buf, 1, inf_section_size - 16, f);
+  fread(buf, 1, inf_section_size - 16, in);
   for (i = 0; i < message_count; i++) {
     message_offset = (unsigned int) read_int(buf + i * inf_block_size, 4);
     messages[i] = (struct Message) {
@@ -58,73 +58,70 @@ decode(void *f)
     };
   }
 
-  fread(buf, 1, 8, f);
+  fread(buf, 1, 8, in);
   dat_section_size = (unsigned int) read_int(buf + 4, 4);
-  // printf("DAT1\nsection size: %d\n", dat_section_size);
+  // fprintf(out, "DAT1\nsection size: %d\n", dat_section_size);
 
   if (buf_size <= dat_section_size - 8) {
     buf_size = dat_section_size - 8;
     buf = realloc(buf, buf_size);
   }
 
-  fread(buf, 1, dat_section_size - 8, f);
+  fread(buf, 1, dat_section_size - 8, in);
   for (i = 0; i < message_count; i++) {
-    printf("%d:\"", messages[i].data);
+    fprintf(out, "%d:", messages[i].data);
     j = messages[i].offset;
     while (0 != buf[j]) {
       c = (unsigned char) buf[j];
 
       switch (c) {
-        case '"':
-          printf("\\\"");
-          break;
         case 0x0a:
-          printf("<br>");
+          fprintf(out, "<br>");
           break;
         case 0x1a:
-          printf("<bin");
+          fprintf(out, "<bin");
           size_t until = j + buf[j + 2];
           while (j < until) {
-            printf(" %02x", (unsigned char) buf[j]);
+            fprintf(out, " %02x", (unsigned char) buf[j]);
             j++;
           }
-          printf(">");
+          fprintf(out, ">");
           continue;
         case 0xe0:
-          printf("à");
+          fprintf(out, "à");
           break;
         case 0xe2:
-          printf("â");
+          fprintf(out, "â");
           break;
         case 0xe7:
-          printf("ç");
+          fprintf(out, "ç");
           break;
         case 0xe8:
-          printf("è");
+          fprintf(out, "è");
           break;
         case 0xe9:
-          printf("é");
+          fprintf(out, "é");
           break;
         case 0xea:
-          printf("ê");
+          fprintf(out, "ê");
           break;
         case 0xee:
-          printf("î");
+          fprintf(out, "î");
           break;
         case 0xef:
-          printf("ï");
+          fprintf(out, "ï");
           break;
         case 0xf9:
-          printf("ù");
+          fprintf(out, "ù");
           break;
         default:
-          putchar(buf[j]);
+          fputc(buf[j], out);
           break;
       }
 
       j += 2;
     }
-    printf("\"\n");
+    fprintf(out, "\n");
   }
 
   free(messages);

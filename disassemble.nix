@@ -11,6 +11,6 @@
 
   buildPhase = ''
     mkdir -p $out/data/French/Message
-    stproject-bmg decode < data/French/Message/battle_parent.bmg > $out/data/French/Message/battle_parent
+    stproject-bmg decode $out/data/French/Message/battle_parent < data/French/Message/battle_parent.bmg
   '';
 }

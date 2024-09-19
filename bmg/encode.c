@@ -6,6 +6,7 @@
 
 struct Message {
   unsigned int flags;
+  size_t length;
   char content[512];
 };
 
@@ -24,16 +25,18 @@ push(struct MessageVec *vec, struct Message *msg)
   }
 
   vec->ptr[vec->size].flags = msg->flags;
-  strcpy(vec->ptr[vec->size].content, msg->content);
+  vec->ptr[vec->size].length = msg->length;
+  memcpy(vec->ptr[vec->size].content, msg->content, msg->length);
   vec->size++;
 }
 
 void
-encode(void *f)
+encode(void *in, void *out)
 {
   char buf[256];
   char flags_buf[16];
-  size_t pos = 0, i, j;
+  char c;
+  size_t i, msg_i;
   struct Message msg;
   struct MessageVec vec = {
     .ptr = malloc(sizeof(struct Message) * 128),
@@ -41,7 +44,7 @@ encode(void *f)
     .size = 0,
   };
 
-  while (NULL != fgets(buf, 256, f)) {
+  while (NULL != fgets(buf, 256, in)) {
     i = 0;
     while (':' != buf[i]) {
       flags_buf[i] = buf[i];
@@ -50,30 +53,51 @@ encode(void *f)
     flags_buf[i] = '\0';
     msg.flags = strtol(flags_buf, NULL, 10);
 
-    i += 2;
-    j = 0;
-    while (1) {
-      msg.content[j] = buf[i];
-
-      if ('\\' == buf[i]) {
-        msg.content[j + 1] = buf[i + 1];
-        j++;
-        i++;
-      } else if ('"' == buf[i]) {
-        break;
+    i++;
+    msg_i = 0;
+    while ('\n' != buf[i]) {
+      switch ((unsigned char) buf[i]) {
+        case 0xc3:
+          switch ((unsigned char) buf[i + 1]) {
+            case 0xa0:
+              c = 0xe0;
+              break;
+            case 0xa9:
+              c = 0xe9;
+              break;
+            case 0xaa:
+              c = 0xea;
+              break;
+            default:
+              c = 0x00;
+              break;
+          }
+          msg.content[msg_i] = c;
+          msg.content[msg_i + 1] = 0x00;
+          msg_i += 2;
+          i += 2;
+          break;
+        default:
+          msg.content[msg_i] = buf[i];
+          msg.content[msg_i + 1] = 0x00;
+          i++;
+          msg_i += 2;
+          break;
       }
-
-      j++;
-      i++;
     }
 
-    msg.content[j] = '\0';
-
+    msg.content[msg_i] = 0x00;
+    msg.content[msg_i + 1] = 0x00;
+    msg.length = msg_i + 2;
     push(&vec, &msg);
   }
 
+  // fprintf(out, "%ld\n", msg.length);
+  // fwrite(msg.content, 1, msg.length, out);
+
   for (i = 0; i < vec.size; i++) {
-    printf("%d: %s\n", vec.ptr[i].flags, vec.ptr[i].content);
+    msg = vec.ptr[i];
+    fwrite(msg.content, 1, msg.length, out);
   }
 
   free(vec.ptr);
