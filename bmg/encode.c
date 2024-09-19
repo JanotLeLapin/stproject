@@ -154,6 +154,7 @@ encode(void *in, void *out)
   fwrite(buf, 1, 3, out);
 
   start = 0;
+  c = 0;
   for (i = 0; i < vec.size; i++) {
     write_int(buf, start, 4);
     fwrite(buf, 1, 4, out);
@@ -161,21 +162,29 @@ encode(void *in, void *out)
     fwrite(buf, 1, 4, out);
 
     start += vec.ptr[i].length;
+    c = (c + 1) % 2;
   }
-  for (i = 0; i < 16; i++) { buf[i] = 0; }
-  fwrite(buf, 1, 16, out);
+  for (i = 0; i < 24; i++) { buf[i] = 0; }
+  fwrite(buf, 1, c ? 24 : 16, out);
 
   fwrite("DAT1", 1, 4, out);
   write_int(buf, dat_size, 4);
   fwrite(buf, 1, 4, out);
 
+  c = 8;
   for (i = 0; i < vec.size; i++) {
     msg = vec.ptr[i];
     fwrite(msg.content, 1, msg.length, out);
+    c = (c + msg.length) % 16;
   }
 
-  for (i = 0; i < 14; i++) { buf[i] = 0; }
-  fwrite(buf, 1, 14, out);
+  for (i = 0; i < 16; i++) { buf[i] = 0; }
+
+  c = (16 - c) % 16;
+  if (c) {
+    fwrite(buf, 1, c, out);
+  }
+  fwrite(buf, 1, 16, out);
 
   free(vec.ptr);
 }
