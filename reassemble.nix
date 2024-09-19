@@ -1,11 +1,11 @@
-{ stproject-disassemble
+{ stproject-patch
 , stproject-bmg
 , stdenv
 }: stdenv.mkDerivation {
   name = "stproject-reassemble";
   version = "0.1";
 
-  src = stproject-disassemble;
+  src = stproject-patch;
 
   nativeBuildInputs = [ stproject-bmg ];
 

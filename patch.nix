@@ -1,4 +1,4 @@
-{ stproject-extract
+{ stproject-disassemble
 , bsdiff
 , stdenv
 }: stdenv.mkDerivation {
@@ -11,6 +11,6 @@
 
   buildPhase = ''
     mkdir -p $out/data/French/Message
-    bspatch ${stproject-extract}/data/French/Message/select.bmg $out/data/French/Message/select.bmg data/French/Message/select.bmg.patch
+    patch -o $out/data/French/Message/battle_parent ${stproject-disassemble}/data/French/Message/battle_parent data/French/Message/battle_parent.patch
   '';
 }

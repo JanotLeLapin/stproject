@@ -1,5 +1,4 @@
 { stproject-extract
-, stproject-patch
 , stproject-reassemble
 , ndstool
 , stdenv
@@ -12,7 +11,6 @@
   nativeBuildInputs = [ ndstool ];
 
   buildPhase = ''
-    cp ${stproject-patch}/data/French/Message/select.bmg data/French/Message/select.bmg
     cp ${stproject-reassemble}/data/French/Message/battle_parent.bmg data/French/Message/battle_parent.bmg
 
     mkdir -p $out

@@ -25,14 +25,13 @@
         stproject-extract = extract;
         stproject-bmg = bmg;
       };
-      patch = pkgs.callPackage ./patch.nix { stproject-extract = extract; };
+      patch = pkgs.callPackage ./patch.nix { stproject-disassemble = disassemble; };
       reassemble = pkgs.callPackage ./reassemble.nix {
-        stproject-disassemble = disassemble;
+        stproject-patch= patch;
         stproject-bmg = bmg;
       };
       bundle = pkgs.callPackage ./bundle.nix {
         stproject-extract = extract;
-        stproject-patch = patch;
         stproject-reassemble = reassemble;
       };
     });
