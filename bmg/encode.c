@@ -31,12 +31,22 @@ push(struct MessageVec *vec, struct Message *msg)
 }
 
 void
+write_int(char *buf, unsigned long value, char bytes)
+{
+  size_t i;
+
+  for (i = 0; i < bytes; i++) {
+    buf[i] = (value >> (i * 8)) & 0xFF;
+  }
+}
+
+void
 encode(void *in, void *out)
 {
   char buf[256];
   char flags_buf[16];
   char c;
-  size_t i, msg_i, start;
+  size_t i, msg_i, start, total_size, inf_size, dat_size = 0;
   struct Message msg;
   struct MessageVec vec = {
     .ptr = malloc(sizeof(struct Message) * 128),
@@ -115,16 +125,57 @@ encode(void *in, void *out)
     msg.content[msg_i] = 0x00;
     msg.content[msg_i + 1] = 0x00;
     msg.length = msg_i + 2;
+    dat_size += msg.length;
     push(&vec, &msg);
   }
 
-  // fprintf(out, "%ld\n", msg.length);
-  // fwrite(msg.content, 1, msg.length, out);
+  dat_size += 22;
+  inf_size = vec.size * 8 + 32;
+  total_size = dat_size + inf_size + 32;
+
+  fwrite("MESGbmg1", 1, 8, out);
+  write_int(buf, total_size, 4);
+  fwrite(buf, 1, 4, out);
+  write_int(buf, 2, 4);
+  fwrite(buf, 1, 4, out);
+  fwrite("\02", 1, 1, out);
+  for (i = 0; i < 15; i++) { buf[i] = 0; }
+  fwrite(buf, 1, 15, out);
+
+  fwrite("INF1", 1, 4, out);
+  write_int(buf, inf_size, 4);
+  fwrite(buf, 1, 4, out);
+  write_int(buf, vec.size, 2);
+  fwrite(buf, 1, 2, out);
+  write_int(buf, 8, 2);
+  fwrite(buf, 1, 2, out);
+  fwrite("\4", 1, 1, out);
+  for (i = 0; i < 3; i++) { buf[i] = 0; }
+  fwrite(buf, 1, 3, out);
+
+  start = 0;
+  for (i = 0; i < vec.size; i++) {
+    write_int(buf, start, 4);
+    fwrite(buf, 1, 4, out);
+    write_int(buf, vec.ptr[i].flags, 4);
+    fwrite(buf, 1, 4, out);
+
+    start += vec.ptr[i].length;
+  }
+  for (i = 0; i < 16; i++) { buf[i] = 0; }
+  fwrite(buf, 1, 16, out);
+
+  fwrite("DAT1", 1, 4, out);
+  write_int(buf, dat_size, 4);
+  fwrite(buf, 1, 4, out);
 
   for (i = 0; i < vec.size; i++) {
     msg = vec.ptr[i];
     fwrite(msg.content, 1, msg.length, out);
   }
+
+  for (i = 0; i < 14; i++) { buf[i] = 0; }
+  fwrite(buf, 1, 14, out);
 
   free(vec.ptr);
 }

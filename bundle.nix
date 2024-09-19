@@ -1,5 +1,6 @@
 { stproject-extract
 , stproject-patch
+, stproject-reassemble
 , ndstool
 , stdenv
 }: stdenv.mkDerivation {
@@ -12,6 +13,7 @@
 
   buildPhase = ''
     cp ${stproject-patch}/data/French/Message/select.bmg data/French/Message/select.bmg
+    cp ${stproject-reassemble}/data/French/Message/battle_parent.bmg data/French/Message/battle_parent.bmg
 
     mkdir -p $out
     ndstool -c $out/rom.nds \

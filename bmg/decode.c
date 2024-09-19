@@ -35,13 +35,13 @@ decode(void *in, void *out)
   file_size = (unsigned int) read_int(buf + 8, 4);
   section_count = (unsigned int) read_int(buf + 12, 4);
   encoding = buf[16] - 1;
-  // fprintf(out, "HEADER\nfile size: %d\nsections: %d\nencoding: %s\n", file_size, section_count, encodings[encoding]);
+  printf("HEADER\nfile size: %d\nsections: %d\nencoding: %s\n", file_size, section_count, encodings[encoding]);
 
   fread(buf, 1, 16, in);
   inf_section_size = (unsigned int) read_int(buf + 4, 4);
   message_count = (unsigned short) read_int(buf + 8, 2);
   inf_block_size = (unsigned short) read_int(buf + 10, 2);
-  // fprintf(out, "INF1\nsection size: %d\nmessages: %d\ndata size: %d\n", inf_section_size, message_count, inf_block_size);
+  printf("INF1\nsection size: %d\nmessages: %d\ndata size: %d\n", inf_section_size, message_count, inf_block_size);
 
   if (buf_size <= inf_section_size - 16) {
     buf_size = inf_section_size - 16;
@@ -60,7 +60,7 @@ decode(void *in, void *out)
 
   fread(buf, 1, 8, in);
   dat_section_size = (unsigned int) read_int(buf + 4, 4);
-  // fprintf(out, "DAT1\nsection size: %d\n", dat_section_size);
+  printf("DAT1\nsection size: %d\n", dat_section_size);
 
   if (buf_size <= dat_section_size - 8) {
     buf_size = dat_section_size - 8;

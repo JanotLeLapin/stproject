@@ -33,6 +33,7 @@
       bundle = pkgs.callPackage ./bundle.nix {
         stproject-extract = extract;
         stproject-patch = patch;
+        stproject-reassemble = reassemble;
       };
     });
   };
