@@ -4,10 +4,16 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+struct Buffer {
+  char *ptr;
+  size_t capacity;
+  size_t size;
+};
+
 struct Message {
   unsigned int flags;
-  size_t length;
-  char content[512];
+  size_t start;
+  size_t end;
 };
 
 struct MessageVec {
@@ -17,16 +23,26 @@ struct MessageVec {
 };
 
 void
-push(struct MessageVec *vec, struct Message *msg)
+buf_write(struct Buffer *buf, const char *str, size_t str_len)
+{
+  if (buf->size + str_len >= buf->capacity) {
+    buf->capacity = buf->capacity * 2 + str_len;
+    buf->ptr = realloc(buf->ptr, buf->capacity);
+  }
+
+  memcpy(buf->ptr + buf->size, str, str_len);
+  buf->size += str_len;
+}
+
+void
+push(struct MessageVec *vec, struct Message msg)
 {
   if (vec->size >= vec->capacity) {
     vec->capacity *= 2;
     vec->ptr = realloc(vec->ptr, vec->capacity * sizeof(struct Message));
   }
 
-  vec->ptr[vec->size].flags = msg->flags;
-  vec->ptr[vec->size].length = msg->length;
-  memcpy(vec->ptr[vec->size].content, msg->content, msg->length);
+  vec->ptr[vec->size] = msg;
   vec->size++;
 }
 
@@ -46,11 +62,16 @@ encode(void *in, void *out)
   char buf[256];
   char flags_buf[16];
   char c;
-  size_t i, msg_i, start, total_size, inf_size, dat_size = 0;
+  size_t i, msg_i, start, total_size, inf_size, dat_size;
   struct Message msg;
   struct MessageVec vec = {
     .ptr = malloc(sizeof(struct Message) * 128),
     .capacity = 128,
+    .size = 0,
+  };
+  struct Buffer dat = {
+    .ptr = malloc(1024),
+    .capacity = 1024,
     .size = 0,
   };
 
@@ -64,7 +85,7 @@ encode(void *in, void *out)
     msg.flags = strtol(flags_buf, NULL, 10);
 
     i++;
-    msg_i = 0;
+    msg.start = dat.size;
     while ('\n' != buf[i]) {
       switch ((unsigned char) buf[i]) {
         case 0xc3:
@@ -82,9 +103,8 @@ encode(void *in, void *out)
               c = 0x00;
               break;
           }
-          msg.content[msg_i] = c;
-          msg.content[msg_i + 1] = 0x00;
-          msg_i += 2;
+          buf_write(&dat, &c, 1);
+          buf_write(&dat, "\x00", 1);
           i += 2;
           break;
         case '<':
@@ -94,17 +114,16 @@ encode(void *in, void *out)
           } while (' ' != buf[i] && '>' != buf[i]);
 
           if (!strncmp(buf + start, "<br>", 4)) {
-            msg.content[msg_i] = 0x0a;
-            msg.content[msg_i + 1] = 0x00;
+            buf_write(&dat, "\x0a\x00", 2);
             i++;
-            msg_i += 2;
           } else if (!strncmp(buf + start, "<bin", 4)) {
             while ('>' != buf[i]) {
               flags_buf[0] = buf[i + 1];
               flags_buf[1] = buf[i + 2];
               flags_buf[2] = '\0';
 
-              msg.content[msg_i] = strtol(flags_buf, NULL, 16);
+              c = strtol(flags_buf, NULL, 16);
+              buf_write(&dat, &c, 1);
 
               i += 3;
               msg_i++;
@@ -114,22 +133,19 @@ encode(void *in, void *out)
 
           break;
         default:
-          msg.content[msg_i] = buf[i];
-          msg.content[msg_i + 1] = 0x00;
+          buf_write(&dat, buf + i, 1);
+          buf_write(&dat, "\x00", 1);
           i++;
-          msg_i += 2;
           break;
       }
     }
 
-    msg.content[msg_i] = 0x00;
-    msg.content[msg_i + 1] = 0x00;
-    msg.length = msg_i + 2;
-    dat_size += msg.length;
-    push(&vec, &msg);
+    buf_write(&dat, "\x00\x00", 2);
+    msg.end = dat.size;
+    push(&vec, msg);
   }
 
-  dat_size += 22;
+  dat_size = dat.size + 22;
   inf_size = vec.size * 8 + 32;
   total_size = dat_size + inf_size + 32;
 
@@ -161,7 +177,7 @@ encode(void *in, void *out)
     write_int(buf, vec.ptr[i].flags, 4);
     fwrite(buf, 1, 4, out);
 
-    start += vec.ptr[i].length;
+    start += vec.ptr[i].end - vec.ptr[i].start;
     c = (c + 1) % 2;
   }
   for (i = 0; i < 24; i++) { buf[i] = 0; }
@@ -174,8 +190,8 @@ encode(void *in, void *out)
   c = 8;
   for (i = 0; i < vec.size; i++) {
     msg = vec.ptr[i];
-    fwrite(msg.content, 1, msg.length, out);
-    c = (c + msg.length) % 16;
+    fwrite(dat.ptr + msg.start, 1, msg.end - msg.start, out);
+    c = (c + msg.end - msg.start) % 16;
   }
 
   for (i = 0; i < 16; i++) { buf[i] = 0; }
