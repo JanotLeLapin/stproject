@@ -1,7 +1,9 @@
 { stproject-disassemble
 , bsdiff
 , stdenv
-}: stdenv.mkDerivation {
+}: let
+  patch = file: dir: "patch -o $out/data/French/Message/${file} ${dir}/data/French/Message/${file} data/French/Message/${file}.patch";
+in stdenv.mkDerivation {
   name = "stproject-patch";
   version = "0.1";
 
@@ -11,6 +13,7 @@
 
   buildPhase = ''
     mkdir -p $out/data/French/Message
-    patch -o $out/data/French/Message/battle_parent ${stproject-disassemble}/data/French/Message/battle_parent data/French/Message/battle_parent.patch
+
+    ${patch "battle_parent" stproject-disassemble}
   '';
 }

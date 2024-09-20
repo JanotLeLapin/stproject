@@ -1,7 +1,9 @@
 { stproject-extract
 , stproject-bmg
 , stdenv
-}: stdenv.mkDerivation {
+}: let
+  decode = file: "stproject-bmg decode $out/data/French/Message/${file} < data/French/Message/${file}.bmg";
+in stdenv.mkDerivation {
   name = "stproject-disassemble";
   version = "0.1";
 
@@ -11,6 +13,7 @@
 
   buildPhase = ''
     mkdir -p $out/data/French/Message
-    stproject-bmg decode $out/data/French/Message/battle_parent < data/French/Message/battle_parent.bmg
+
+    ${decode "battle_parent"}
   '';
 }

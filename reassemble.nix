@@ -1,7 +1,9 @@
 { stproject-patch
 , stproject-bmg
 , stdenv
-}: stdenv.mkDerivation {
+}: let
+  encode = file: "stproject-bmg encode $out/data/French/Message/${file}.bmg < data/French/Message/${file}";
+in stdenv.mkDerivation {
   name = "stproject-reassemble";
   version = "0.1";
 
@@ -11,6 +13,7 @@
 
   buildPhase = ''
     mkdir -p $out/data/French/Message
-    stproject-bmg encode $out/data/French/Message/battle_parent.bmg < data/French/Message/battle_parent
+
+    ${encode "battle_parent"}
   '';
 }
