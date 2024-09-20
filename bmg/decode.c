@@ -24,6 +24,7 @@ struct InfSection {
   unsigned int section_size;
   unsigned short message_count;
   unsigned short message_size;
+  unsigned int file_id;
   struct Message *messages;
 };
 
@@ -62,6 +63,7 @@ decode_inf_section(struct Context *ctx)
   res.section_size = (unsigned int) read_int(ctx->buf + 4, 4);
   res.message_count = (unsigned short) read_int(ctx->buf + 8, 2);
   res.message_size = (unsigned short) read_int(ctx->buf + 10, 2);
+  res.file_id = (unsigned int) read_int(ctx->buf + 12, 4);
 
   if (ctx->buf_capacity <= res.section_size - 16) {
     ctx->buf_capacity = res.section_size - 16;
@@ -143,7 +145,10 @@ decode(void *in, void *out)
   unsigned int dat_section_size;
 
   file_headers = decode_headers(&ctx);
+
   inf_section = decode_inf_section(&ctx);
+  fprintf(ctx.out, "%d // file id\n\n", inf_section.file_id);
+
   dat_section_size = decode_dat_section(&ctx, inf_section);
 
   printf(

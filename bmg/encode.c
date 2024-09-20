@@ -63,6 +63,20 @@ write_int(char *buf, unsigned long value, char bytes)
 }
 
 unsigned int
+encode_file_id(struct Context *ctx)
+{
+  char id_buf[16];
+  size_t i = 0;
+
+  while (' ' != ctx->buf[i]) {
+    id_buf[i] = ctx->buf[i];
+    i++;
+  }
+  id_buf[i] = '\0';
+  return (unsigned int) strtol(id_buf, NULL, 10);
+}
+
+unsigned int
 encode_flags(struct Context *ctx)
 {
   char flags_buf[32];
@@ -135,9 +149,13 @@ encode(void *in, void *out)
   };
   char buf[256];
   char c;
+  unsigned int file_id;
   size_t i, start, total_size, inf_size, dat_size;
   struct Message msg;
 
+  fgets(ctx.buf, 1024, in);
+  file_id = encode_file_id(&ctx);
+  fgets(ctx.buf, 1024, in);
   while (NULL != fgets(ctx.buf, 1024, in)) {
     ctx.i = 0;
     msg.flags = encode_flags(&ctx);
@@ -177,9 +195,8 @@ encode(void *in, void *out)
   fwrite(buf, 1, 2, out);
   write_int(buf, 8, 2);
   fwrite(buf, 1, 2, out);
-  fwrite("\4", 1, 1, out);
-  for (i = 0; i < 3; i++) { buf[i] = 0; }
-  fwrite(buf, 1, 3, out);
+  write_int(buf, file_id, 4);
+  fwrite(buf, 1, 4, out);
 
   start = 0;
   for (i = 0; i < ctx.inf.vec_size; i++) {
