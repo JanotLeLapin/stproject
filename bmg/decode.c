@@ -8,6 +8,25 @@ struct Message {
   unsigned int data;
 };
 
+struct Context {
+  FILE *in, *out;
+  size_t buf_capacity;
+  char *buf;
+};
+
+struct FileHeaders {
+  unsigned int file_size;
+  unsigned int section_count;
+  unsigned char encoding;
+};
+
+struct InfSection {
+  unsigned int section_size;
+  unsigned short message_count;
+  unsigned short message_size;
+  struct Message *messages;
+};
+
 long
 read_int(char *buf, char bytes)
 {
@@ -21,109 +40,145 @@ read_int(char *buf, char bytes)
   return res;
 }
 
-void
-decode(void *in, void *out)
+struct FileHeaders
+decode_headers(struct Context *ctx)
 {
-  char *buf = malloc(32);
-  struct Message *messages;
-  size_t i, j, buf_size = 33;
-  unsigned char encoding, c;
-  unsigned short message_count, data_size, inf_block_size;
-  unsigned int file_size, section_count, inf_section_size, message_offset, message_data, dat_section_size;
+  fread(ctx->buf, 1, 32, ctx->in);
 
-  fread(buf, 1, 32, in);
-  file_size = (unsigned int) read_int(buf + 8, 4);
-  section_count = (unsigned int) read_int(buf + 12, 4);
-  encoding = buf[16] - 1;
-  printf("HEADER\nfile size: %d\nsections: %d\nencoding: %s\n", file_size, section_count, encodings[encoding]);
+  return (struct FileHeaders) {
+    .file_size = (unsigned int) read_int(ctx->buf + 8, 4),
+    .section_count = (unsigned int) read_int(ctx->buf + 12, 4),
+    .encoding = (unsigned char) ctx->buf[16] - 1,
+  };
+}
 
-  fread(buf, 1, 16, in);
-  inf_section_size = (unsigned int) read_int(buf + 4, 4);
-  message_count = (unsigned short) read_int(buf + 8, 2);
-  inf_block_size = (unsigned short) read_int(buf + 10, 2);
-  printf("INF1\nsection size: %d\nmessages: %d\ndata size: %d\n", inf_section_size, message_count, inf_block_size);
+struct InfSection
+decode_inf_section(struct Context *ctx)
+{
+  struct InfSection res;
+  size_t i;
 
-  if (buf_size <= inf_section_size - 16) {
-    buf_size = inf_section_size - 16;
-    buf = realloc(buf, buf_size);
-  }
-  messages = malloc(8 * message_count);
+  fread(ctx->buf, 1, 16, ctx->in);
+  res.section_size = (unsigned int) read_int(ctx->buf + 4, 4);
+  res.message_count = (unsigned short) read_int(ctx->buf + 8, 2);
+  res.message_size = (unsigned short) read_int(ctx->buf + 10, 2);
 
-  fread(buf, 1, inf_section_size - 16, in);
-  for (i = 0; i < message_count; i++) {
-    message_offset = (unsigned int) read_int(buf + i * inf_block_size, 4);
-    messages[i] = (struct Message) {
-      .offset = (unsigned int) read_int(buf + i * inf_block_size, 4),
-      .data = (unsigned int) read_int(buf + i * inf_block_size + 4, 4),
-    };
+  if (ctx->buf_capacity <= res.section_size - 16) {
+    ctx->buf_capacity = res.section_size - 16;
+    ctx->buf = realloc(ctx->buf, ctx->buf_capacity);
   }
 
-  fread(buf, 1, 8, in);
-  dat_section_size = (unsigned int) read_int(buf + 4, 4);
-  printf("DAT1\nsection size: %d\n", dat_section_size);
+  fread(ctx->buf, 1, res.section_size - 16, ctx->in);
 
-  if (buf_size <= dat_section_size - 8) {
-    buf_size = dat_section_size - 8;
-    buf = realloc(buf, buf_size);
+  res.messages = malloc(8 * res.message_count);
+  for (i = 0; i < res.message_count; i++) {
+    res.messages[i].offset = (unsigned int) read_int(ctx->buf + i * res.message_size, 4);
+    res.messages[i].data = (unsigned int) read_int(ctx->buf + i * res.message_size + 4, 4);
   }
 
-  fread(buf, 1, dat_section_size - 8, in);
-  for (i = 0; i < message_count; i++) {
-    fprintf(out, "%d:", messages[i].data);
-    j = messages[i].offset;
-    while (0 != buf[j]) {
-      c = (unsigned char) buf[j];
+  return res;
+}
 
-      switch (c) {
+unsigned int
+decode_dat_section(struct Context *ctx, struct InfSection inf)
+{
+  size_t i, msg_i;
+  unsigned int section_size;
+
+  fread(ctx->buf, 1, 8, ctx->in);
+  section_size = (unsigned int) read_int(ctx->buf + 4, 4);
+
+  if (ctx->buf_capacity <= section_size - 8) {
+    ctx->buf_capacity = section_size - 8;
+    ctx->buf = realloc(ctx->buf, ctx->buf_capacity);
+  }
+
+  fread(ctx->buf, 1, section_size - 8, ctx->in);
+  for (i = 0; i < inf.message_count; i++) {
+    fprintf(ctx->out, "%d:", inf.messages[i].data);
+    msg_i = inf.messages[i].offset;
+    while (0 != ctx->buf[msg_i]) {
+      switch ((unsigned char) ctx->buf[msg_i]) {
         case 0x0a:
-          fprintf(out, "<br>");
+          fprintf(ctx->out, "<br>");
           break;
         case 0x1a:
-          fprintf(out, "<bin");
-          size_t until = j + buf[j + 2];
-          while (j < until) {
-            fprintf(out, " %02x", (unsigned char) buf[j]);
-            j++;
+          fprintf(ctx->out, "<bin");
+          size_t until = msg_i + ctx->buf[msg_i + 2];
+          while (msg_i < until) {
+            fprintf(ctx->out, " %02x", (unsigned char) ctx->buf[msg_i]);
+            msg_i++;
           }
-          fprintf(out, ">");
+          fprintf(ctx->out, ">");
           continue;
         case 0xe0:
-          fprintf(out, "à");
+          fprintf(ctx->out, "à");
           break;
         case 0xe2:
-          fprintf(out, "â");
+          fprintf(ctx->out, "â");
           break;
         case 0xe7:
-          fprintf(out, "ç");
+          fprintf(ctx->out, "ç");
           break;
         case 0xe8:
-          fprintf(out, "è");
+          fprintf(ctx->out, "è");
           break;
         case 0xe9:
-          fprintf(out, "é");
+          fprintf(ctx->out, "é");
           break;
         case 0xea:
-          fprintf(out, "ê");
+          fprintf(ctx->out, "ê");
           break;
         case 0xee:
-          fprintf(out, "î");
+          fprintf(ctx->out, "î");
           break;
         case 0xef:
-          fprintf(out, "ï");
+          fprintf(ctx->out, "ï");
           break;
         case 0xf9:
-          fprintf(out, "ù");
+          fprintf(ctx->out, "ù");
           break;
         default:
-          fputc(buf[j], out);
+          fputc(ctx->buf[msg_i], ctx->out);
           break;
       }
 
-      j += 2;
+      msg_i += 2;
     }
-    fprintf(out, "\n");
+    fputc('\n', ctx->out);
   }
 
-  free(messages);
-  free(buf);
+  return section_size;
+}
+
+void
+decode(void *in, void *out)
+{
+  struct Context ctx = {
+    .buf = malloc(32),
+    .buf_capacity = 32,
+    .in = stdin,
+    .out = out,
+  };
+  struct FileHeaders file_headers;
+  struct InfSection inf_section;
+  unsigned int dat_section_size;
+
+  file_headers = decode_headers(&ctx);
+  inf_section = decode_inf_section(&ctx);
+  dat_section_size = decode_dat_section(&ctx, inf_section);
+
+  printf(
+    "HEADER\nfile size: %d\nsections: %d\nencoding: %s\nINF1\nsection size: %d\nmessage count: %d\ndata size: %d\nDAT1\nsection size: %d\n",
+    file_headers.file_size,
+    file_headers.section_count,
+    encodings[file_headers.encoding],
+    inf_section.section_size,
+    inf_section.message_count,
+    inf_section.message_size,
+    dat_section_size
+  );
+
+  free(inf_section.messages);
+  free(ctx.buf);
 }
