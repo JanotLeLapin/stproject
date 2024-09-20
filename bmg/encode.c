@@ -4,10 +4,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-struct Buffer {
-  char *ptr;
-  size_t capacity;
-  size_t size;
+struct Vec {
+  void *ptr;
+  size_t capacity, elem_size, vec_size;
 };
 
 struct Message {
@@ -16,34 +15,33 @@ struct Message {
   size_t end;
 };
 
-struct MessageVec {
-  struct Message *ptr;
-  size_t capacity;
-  size_t size;
-};
-
-void
-buf_write(struct Buffer *buf, const char *str, size_t str_len)
+struct Vec
+new_vec(size_t initial_capacity, size_t elem_size)
 {
-  if (buf->size + str_len >= buf->capacity) {
-    buf->capacity = buf->capacity * 2 + str_len;
-    buf->ptr = realloc(buf->ptr, buf->capacity);
-  }
-
-  memcpy(buf->ptr + buf->size, str, str_len);
-  buf->size += str_len;
+  return (struct Vec) {
+    .ptr = malloc(elem_size * initial_capacity),
+    .capacity = initial_capacity,
+    .elem_size = elem_size,
+    .vec_size = 0,
+  };
 }
 
 void
-push(struct MessageVec *vec, struct Message msg)
+vec_push(struct Vec *vec, void *elem)
 {
-  if (vec->size >= vec->capacity) {
+  if (vec->vec_size * vec->elem_size >= vec->capacity * vec->elem_size) {
     vec->capacity *= 2;
     vec->ptr = realloc(vec->ptr, vec->capacity * sizeof(struct Message));
   }
 
-  vec->ptr[vec->size] = msg;
-  vec->size++;
+  memcpy(vec->ptr + vec->vec_size * vec->elem_size, elem, vec->elem_size);
+  vec->vec_size++;
+}
+
+void *
+vec_get(struct Vec *vec, size_t idx)
+{
+  return vec->ptr + vec->elem_size * idx;
 }
 
 void
@@ -64,16 +62,8 @@ encode(void *in, void *out)
   char c;
   size_t i, msg_i, start, total_size, inf_size, dat_size;
   struct Message msg;
-  struct MessageVec vec = {
-    .ptr = malloc(sizeof(struct Message) * 128),
-    .capacity = 128,
-    .size = 0,
-  };
-  struct Buffer dat = {
-    .ptr = malloc(1024),
-    .capacity = 1024,
-    .size = 0,
-  };
+  struct Vec messages = new_vec(128, sizeof(struct Message));
+  struct Vec dat = new_vec(1024, 1);
 
   while (NULL != fgets(buf, 256, in)) {
     i = 0;
@@ -85,7 +75,7 @@ encode(void *in, void *out)
     msg.flags = strtol(flags_buf, NULL, 10);
 
     i++;
-    msg.start = dat.size;
+    msg.start = dat.vec_size;
     while ('\n' != buf[i]) {
       switch ((unsigned char) buf[i]) {
         case 0xc3:
@@ -103,8 +93,8 @@ encode(void *in, void *out)
               c = 0x00;
               break;
           }
-          buf_write(&dat, &c, 1);
-          buf_write(&dat, "\x00", 1);
+          vec_push(&dat, &c);
+          vec_push(&dat, "\x00");
           i += 2;
           break;
         case '<':
@@ -114,7 +104,8 @@ encode(void *in, void *out)
           } while (' ' != buf[i] && '>' != buf[i]);
 
           if (!strncmp(buf + start, "<br>", 4)) {
-            buf_write(&dat, "\x0a\x00", 2);
+            vec_push(&dat, "\x0a");
+            vec_push(&dat, "\x00");
             i++;
           } else if (!strncmp(buf + start, "<bin", 4)) {
             while ('>' != buf[i]) {
@@ -123,7 +114,7 @@ encode(void *in, void *out)
               flags_buf[2] = '\0';
 
               c = strtol(flags_buf, NULL, 16);
-              buf_write(&dat, &c, 1);
+              vec_push(&dat, &c);
 
               i += 3;
               msg_i++;
@@ -133,20 +124,21 @@ encode(void *in, void *out)
 
           break;
         default:
-          buf_write(&dat, buf + i, 1);
-          buf_write(&dat, "\x00", 1);
+          vec_push(&dat, buf + i);
+          vec_push(&dat, "\x00");
           i++;
           break;
       }
     }
 
-    buf_write(&dat, "\x00\x00", 2);
-    msg.end = dat.size;
-    push(&vec, msg);
+    vec_push(&dat, "\x00");
+    vec_push(&dat, "\x00");
+    msg.end = dat.vec_size;
+    vec_push(&messages, &msg);
   }
 
-  dat_size = dat.size + 22;
-  inf_size = vec.size * 8 + 32;
+  dat_size = dat.vec_size + 22;
+  inf_size = messages.vec_size * 8 + 32;
   total_size = dat_size + inf_size + 32;
 
   fwrite("MESGbmg1", 1, 8, out);
@@ -161,7 +153,7 @@ encode(void *in, void *out)
   fwrite("INF1", 1, 4, out);
   write_int(buf, inf_size, 4);
   fwrite(buf, 1, 4, out);
-  write_int(buf, vec.size, 2);
+  write_int(buf, messages.vec_size, 2);
   fwrite(buf, 1, 2, out);
   write_int(buf, 8, 2);
   fwrite(buf, 1, 2, out);
@@ -171,13 +163,14 @@ encode(void *in, void *out)
 
   start = 0;
   c = 0;
-  for (i = 0; i < vec.size; i++) {
+  for (i = 0; i < messages.vec_size; i++) {
+    msg = *((struct Message *) vec_get(&messages, i));
     write_int(buf, start, 4);
     fwrite(buf, 1, 4, out);
-    write_int(buf, vec.ptr[i].flags, 4);
+    write_int(buf, msg.flags, 4);
     fwrite(buf, 1, 4, out);
 
-    start += vec.ptr[i].end - vec.ptr[i].start;
+    start += msg.end - msg.start;
     c = (c + 1) % 2;
   }
   for (i = 0; i < 24; i++) { buf[i] = 0; }
@@ -188,8 +181,8 @@ encode(void *in, void *out)
   fwrite(buf, 1, 4, out);
 
   c = 8;
-  for (i = 0; i < vec.size; i++) {
-    msg = vec.ptr[i];
+  for (i = 0; i < messages.vec_size; i++) {
+    msg = *((struct Message *) vec_get(&messages, i));
     fwrite(dat.ptr + msg.start, 1, msg.end - msg.start, out);
     c = (c + msg.end - msg.start) % 16;
   }
@@ -202,5 +195,6 @@ encode(void *in, void *out)
   }
   fwrite(buf, 1, 16, out);
 
-  free(vec.ptr);
+  free(messages.ptr);
+  free(dat.ptr);
 }
