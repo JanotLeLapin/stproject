@@ -87,20 +87,7 @@ encode_text(struct Context *ctx)
   while ('\n' != ctx->buf[ctx->i]) {
     switch ((unsigned char) ctx->buf[ctx->i]) {
       case 0xc3:
-        switch ((unsigned char) ctx->buf[ctx->i + 1]) {
-          case 0xa0:
-            c = 0xe0;
-            break;
-          case 0xa9:
-            c = 0xe9;
-            break;
-          case 0xaa:
-            c = 0xea;
-            break;
-          default:
-            c = 0x00;
-            break;
-        }
+        c = ctx->buf[ctx->i + 1] + 64;
         vec_push(&ctx->dat, &c);
         vec_push(&ctx->dat, "\x00");
         ctx->i += 2;

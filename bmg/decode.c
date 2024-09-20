@@ -111,35 +111,13 @@ decode_dat_section(struct Context *ctx, struct InfSection inf)
           }
           fprintf(ctx->out, ">");
           continue;
-        case 0xe0:
-          fprintf(ctx->out, "à");
-          break;
-        case 0xe2:
-          fprintf(ctx->out, "â");
-          break;
-        case 0xe7:
-          fprintf(ctx->out, "ç");
-          break;
-        case 0xe8:
-          fprintf(ctx->out, "è");
-          break;
-        case 0xe9:
-          fprintf(ctx->out, "é");
-          break;
-        case 0xea:
-          fprintf(ctx->out, "ê");
-          break;
-        case 0xee:
-          fprintf(ctx->out, "î");
-          break;
-        case 0xef:
-          fprintf(ctx->out, "ï");
-          break;
-        case 0xf9:
-          fprintf(ctx->out, "ù");
-          break;
         default:
-          fputc(ctx->buf[msg_i], ctx->out);
+          if ((unsigned char) ctx->buf[msg_i] >= 0xe0 && (unsigned char) ctx->buf[msg_i] <= 0xff) {
+            fputc(0xc3, ctx->out);
+            fputc((unsigned char) ctx->buf[msg_i] - 64, ctx->out);
+          } else {
+            fputc(ctx->buf[msg_i], ctx->out);
+          }
           break;
       }
 
