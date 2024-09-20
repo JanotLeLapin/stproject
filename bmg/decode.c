@@ -28,6 +28,11 @@ struct InfSection {
   struct Message *messages;
 };
 
+struct FlwSection {
+  unsigned short instruction_count;
+  unsigned short label_count;
+};
+
 long
 read_int(char *buf, char bytes)
 {
@@ -131,6 +136,41 @@ decode_dat_section(struct Context *ctx, struct InfSection inf)
   return section_size;
 }
 
+struct FlwSection
+decode_flw_section(struct Context *ctx)
+{
+  struct FlwSection res;
+  size_t i;
+  unsigned long instruction;
+  unsigned short label;
+  unsigned char id;
+
+  fread(ctx->buf, 1, 16, ctx->in);
+  res.instruction_count = (unsigned short) read_int(ctx->buf + 8, 2);
+  res.label_count = (unsigned short) read_int(ctx->buf + 10, 2);
+
+  if (ctx->buf_capacity <= res.instruction_count * 8 + res.label_count * 3) {
+    ctx->buf_capacity = res.instruction_count * 8 + res.label_count * 3;
+    ctx->buf = realloc(ctx->buf, ctx->buf_capacity);
+  }
+
+  fread(ctx->buf, 1, res.instruction_count * 8 + res.label_count * 3, ctx->in);
+  for (i = 0; i < res.instruction_count; i++) {
+    instruction = read_int(ctx->buf + i * 8, 8);
+    fprintf(ctx->out, "%ld\n", instruction);
+  }
+
+  fprintf(ctx->out, "\n");
+
+  for (i = 0; i < res.label_count; i++) {
+    label = (unsigned short) read_int(ctx->buf + res.instruction_count * 8 + i, 2);
+    id = (unsigned char) read_int(ctx->buf + res.instruction_count * 8 + res.label_count * 2 + i, 1);
+    fprintf(ctx->out, "%d %d\n", label, id);
+  }
+
+  return res;
+}
+
 void
 decode(void *in, void *out)
 {
@@ -142,6 +182,7 @@ decode(void *in, void *out)
   };
   struct FileHeaders file_headers;
   struct InfSection inf_section;
+  struct FlwSection flw_section;
   unsigned int dat_section_size;
 
   file_headers = decode_headers(&ctx);
@@ -151,15 +192,22 @@ decode(void *in, void *out)
 
   dat_section_size = decode_dat_section(&ctx, inf_section);
 
+  if (file_headers.section_count >= 4) {
+    fprintf(ctx.out, "\n");
+    flw_section = decode_flw_section(&ctx);
+  }
+
   printf(
-    "HEADER\nfile size: %d\nsections: %d\nencoding: %s\nINF1\nsection size: %d\nmessage count: %d\ndata size: %d\nDAT1\nsection size: %d\n",
+    "HEADER\nfile size: %d\nsections: %d\nencoding: %s\nINF1\nsection size: %d\nmessage count: %d\ndata size: %d\nDAT1\nsection size: %d\nFLW1\ninstruction count: %d\nlabel count: %d\n",
     file_headers.file_size,
     file_headers.section_count,
     encodings[file_headers.encoding],
     inf_section.section_size,
     inf_section.message_count,
     inf_section.message_size,
-    dat_section_size
+    dat_section_size,
+    flw_section.instruction_count,
+    flw_section.label_count
   );
 
   free(inf_section.messages);
