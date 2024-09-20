@@ -15,6 +15,14 @@ struct Message {
   size_t end;
 };
 
+struct Context {
+  FILE *in, *out;
+  size_t i;
+  char buf[1024];
+  struct Vec inf;
+  struct Vec dat;
+};
+
 struct Vec
 new_vec(size_t initial_capacity, size_t elem_size)
 {
@@ -54,91 +62,112 @@ write_int(char *buf, unsigned long value, char bytes)
   }
 }
 
+unsigned int
+encode_flags(struct Context *ctx)
+{
+  char flags_buf[32];
+  size_t start = ctx->i;
+
+  while (':' != ctx->buf[ctx->i]) {
+    flags_buf[ctx->i - start] = ctx->buf[ctx->i];
+    ctx->i++;
+  }
+  flags_buf[ctx->i - start] = '\0';
+  ctx->i++;
+  return (unsigned int) strtol(flags_buf, NULL, 10);
+}
+
+void
+encode_text(struct Context *ctx)
+{
+  char buf[4];
+  size_t start;
+  char c;
+
+  while ('\n' != ctx->buf[ctx->i]) {
+    switch ((unsigned char) ctx->buf[ctx->i]) {
+      case 0xc3:
+        switch ((unsigned char) ctx->buf[ctx->i + 1]) {
+          case 0xa0:
+            c = 0xe0;
+            break;
+          case 0xa9:
+            c = 0xe9;
+            break;
+          case 0xaa:
+            c = 0xea;
+            break;
+          default:
+            c = 0x00;
+            break;
+        }
+        vec_push(&ctx->dat, &c);
+        vec_push(&ctx->dat, "\x00");
+        ctx->i += 2;
+        break;
+      case '<':
+        start = ctx->i;
+        do {
+          ctx->i++;
+        } while (' ' != ctx->buf[ctx->i] && '>' != ctx->buf[ctx->i]);
+
+        if (!strncmp(ctx->buf + start, "<br>", 4)) {
+          vec_push(&ctx->dat, "\x0a");
+          vec_push(&ctx->dat, "\x00");
+          ctx->i++;
+        } else if (!strncmp(ctx->buf + start, "<bin", 4)) {
+          while ('>' != ctx->buf[ctx->i]) {
+            buf[0] = ctx->buf[ctx->i + 1];
+            buf[1] = ctx->buf[ctx->i + 2];
+            buf[2] = '\0';
+
+            c = strtol(buf, NULL, 16);
+            vec_push(&ctx->dat, &c);
+
+            ctx->i += 3;
+          }
+          ctx->i++;
+        }
+
+        break;
+      default:
+        vec_push(&ctx->dat, ctx->buf + ctx->i);
+        vec_push(&ctx->dat, "\x00");
+        ctx->i++;
+        break;
+    }
+  }
+
+  vec_push(&ctx->dat, "\x00");
+  vec_push(&ctx->dat, "\x00");
+}
+
 void
 encode(void *in, void *out)
 {
+  struct Context ctx = {
+    .in = in,
+    .out = out,
+    .inf = new_vec(256, sizeof(struct Message)),
+    .dat = new_vec(1024, 1),
+  };
   char buf[256];
-  char flags_buf[16];
   char c;
-  size_t i, msg_i, start, total_size, inf_size, dat_size;
+  size_t i, start, total_size, inf_size, dat_size;
   struct Message msg;
-  struct Vec messages = new_vec(128, sizeof(struct Message));
-  struct Vec dat = new_vec(1024, 1);
 
-  while (NULL != fgets(buf, 256, in)) {
-    i = 0;
-    while (':' != buf[i]) {
-      flags_buf[i] = buf[i];
-      i++;
-    }
-    flags_buf[i] = '\0';
-    msg.flags = strtol(flags_buf, NULL, 10);
+  while (NULL != fgets(ctx.buf, 256, in)) {
+    ctx.i = 0;
+    msg.flags = encode_flags(&ctx);
 
-    i++;
-    msg.start = dat.vec_size;
-    while ('\n' != buf[i]) {
-      switch ((unsigned char) buf[i]) {
-        case 0xc3:
-          switch ((unsigned char) buf[i + 1]) {
-            case 0xa0:
-              c = 0xe0;
-              break;
-            case 0xa9:
-              c = 0xe9;
-              break;
-            case 0xaa:
-              c = 0xea;
-              break;
-            default:
-              c = 0x00;
-              break;
-          }
-          vec_push(&dat, &c);
-          vec_push(&dat, "\x00");
-          i += 2;
-          break;
-        case '<':
-          start = i;
-          do {
-            i++;
-          } while (' ' != buf[i] && '>' != buf[i]);
-
-          if (!strncmp(buf + start, "<br>", 4)) {
-            vec_push(&dat, "\x0a");
-            vec_push(&dat, "\x00");
-            i++;
-          } else if (!strncmp(buf + start, "<bin", 4)) {
-            while ('>' != buf[i]) {
-              flags_buf[0] = buf[i + 1];
-              flags_buf[1] = buf[i + 2];
-              flags_buf[2] = '\0';
-
-              c = strtol(flags_buf, NULL, 16);
-              vec_push(&dat, &c);
-
-              i += 3;
-              msg_i++;
-            }
-            i++;
-          }
-
-          break;
-        default:
-          vec_push(&dat, buf + i);
-          vec_push(&dat, "\x00");
-          i++;
-          break;
-      }
-    }
-
-    vec_push(&dat, "\x00");
-    vec_push(&dat, "\x00");
-    msg.end = dat.vec_size;
-    vec_push(&messages, &msg);
+    msg.start = ctx.dat.vec_size;
+    encode_text(&ctx);
+    msg.end = ctx.dat.vec_size;
+    vec_push(&ctx.inf, &msg);
   }
 
-  dat_size = dat.vec_size + 22;
-  inf_size = messages.vec_size * 8 + 32;
+  dat_size = ctx.dat.vec_size + 22;
+  inf_size = ctx.inf.vec_size * 8 + 32;
   total_size = dat_size + inf_size + 32;
 
   fwrite("MESGbmg1", 1, 8, out);
@@ -153,7 +182,7 @@ encode(void *in, void *out)
   fwrite("INF1", 1, 4, out);
   write_int(buf, inf_size, 4);
   fwrite(buf, 1, 4, out);
-  write_int(buf, messages.vec_size, 2);
+  write_int(buf, ctx.inf.vec_size, 2);
   fwrite(buf, 1, 2, out);
   write_int(buf, 8, 2);
   fwrite(buf, 1, 2, out);
@@ -163,8 +192,8 @@ encode(void *in, void *out)
 
   start = 0;
   c = 0;
-  for (i = 0; i < messages.vec_size; i++) {
-    msg = *((struct Message *) vec_get(&messages, i));
+  for (i = 0; i < ctx.inf.vec_size; i++) {
+    msg = *((struct Message *) vec_get(&ctx.inf, i));
     write_int(buf, start, 4);
     fwrite(buf, 1, 4, out);
     write_int(buf, msg.flags, 4);
@@ -181,9 +210,9 @@ encode(void *in, void *out)
   fwrite(buf, 1, 4, out);
 
   c = 8;
-  for (i = 0; i < messages.vec_size; i++) {
-    msg = *((struct Message *) vec_get(&messages, i));
-    fwrite(dat.ptr + msg.start, 1, msg.end - msg.start, out);
+  for (i = 0; i < ctx.inf.vec_size; i++) {
+    msg = *((struct Message *) vec_get(&ctx.inf, i));
+    fwrite(ctx.dat.ptr + msg.start, 1, msg.end - msg.start, out);
     c = (c + msg.end - msg.start) % 16;
   }
 
@@ -195,6 +224,6 @@ encode(void *in, void *out)
   }
   fwrite(buf, 1, 16, out);
 
-  free(messages.ptr);
-  free(dat.ptr);
+  free(ctx.inf.ptr);
+  free(ctx.dat.ptr);
 }
