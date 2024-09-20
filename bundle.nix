@@ -12,6 +12,7 @@
 
   buildPhase = ''
     cp ${stproject-reassemble}/data/French/Message/battle_parent.bmg data/French/Message/battle_parent.bmg
+    cp ${stproject-reassemble}/data/French/Message/battle_common.bmg data/French/Message/battle_common.bmg
 
     mkdir -p $out
     ndstool -c $out/rom.nds \

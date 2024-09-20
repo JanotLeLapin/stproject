@@ -15,5 +15,6 @@ in stdenv.mkDerivation {
     mkdir -p $out/data/French/Message
 
     ${patch "battle_parent" stproject-disassemble}
+    ${patch "battle_common" stproject-disassemble}
   '';
 }

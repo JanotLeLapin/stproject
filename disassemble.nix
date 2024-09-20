@@ -15,5 +15,6 @@ in stdenv.mkDerivation {
     mkdir -p $out/data/French/Message
 
     ${decode "battle_parent"}
+    ${decode "battle_common"}
   '';
 }
