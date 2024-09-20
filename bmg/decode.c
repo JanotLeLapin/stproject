@@ -33,6 +33,11 @@ struct FlwSection {
   unsigned short label_count;
 };
 
+struct FliSection {
+  unsigned short instruction_count;
+  unsigned short instruction_size;
+};
+
 long
 read_int(char *buf, char bytes)
 {
@@ -171,6 +176,28 @@ decode_flw_section(struct Context *ctx)
   return res;
 }
 
+struct FliSection
+decode_fli_section(struct Context *ctx)
+{
+  struct FliSection res;
+  size_t i;
+  unsigned int id;
+  unsigned short index;
+
+  fread(ctx->buf, 1, 16, ctx->in);
+  res.instruction_count = (unsigned short) read_int(ctx->buf + 8, 2);
+  res.instruction_size = (unsigned short) read_int(ctx->buf + 10, 2);
+
+  fread(ctx->buf, 1, res.instruction_count * res.instruction_size, ctx->in);
+  for (i = 0; i < res.instruction_count; i++) {
+    id = (unsigned int) read_int(ctx->buf + i * res.instruction_size, 4);
+    index = (unsigned short) read_int(ctx->buf + i * res.instruction_size + 4, 2);
+    fprintf(ctx->out, "%d %d\n", id, index);
+  }
+
+  return res;
+}
+
 void
 decode(void *in, void *out)
 {
@@ -183,6 +210,7 @@ decode(void *in, void *out)
   struct FileHeaders file_headers;
   struct InfSection inf_section;
   struct FlwSection flw_section;
+  struct FliSection fli_section;
   unsigned int dat_section_size;
 
   file_headers = decode_headers(&ctx);
@@ -192,23 +220,32 @@ decode(void *in, void *out)
 
   dat_section_size = decode_dat_section(&ctx, inf_section);
 
-  if (file_headers.section_count >= 4) {
-    fprintf(ctx.out, "\n");
-    flw_section = decode_flw_section(&ctx);
-  }
-
   printf(
-    "HEADER\nfile size: %d\nsections: %d\nencoding: %s\nINF1\nsection size: %d\nmessage count: %d\ndata size: %d\nDAT1\nsection size: %d\nFLW1\ninstruction count: %d\nlabel count: %d\n",
+    "HEADER\nfile size: %d\nsections: %d\nencoding: %s\nINF1\nsection size: %d\nmessage count: %d\ndata size: %d\nDAT1\nsection size: %d\n",
     file_headers.file_size,
     file_headers.section_count,
     encodings[file_headers.encoding],
     inf_section.section_size,
     inf_section.message_count,
     inf_section.message_size,
-    dat_section_size,
-    flw_section.instruction_count,
-    flw_section.label_count
+    dat_section_size
   );
+
+  if (file_headers.section_count >= 4) {
+    fprintf(ctx.out, "\n");
+    flw_section = decode_flw_section(&ctx);
+
+    fprintf(ctx.out, "\n");
+    fli_section = decode_fli_section(&ctx);
+
+    printf(
+      "FLW1\ninstruction count: %d\nlabel count: %d\nFLI1\ninstruction count: %d\ninstruction size: %d\n",
+      flw_section.instruction_count,
+      flw_section.label_count,
+      fli_section.instruction_count,
+      fli_section.instruction_size
+    );
+  }
 
   free(inf_section.messages);
   free(ctx.buf);
