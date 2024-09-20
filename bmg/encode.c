@@ -80,9 +80,8 @@ encode_flags(struct Context *ctx)
 void
 encode_text(struct Context *ctx)
 {
-  char buf[4];
-  size_t start;
-  char c;
+  char buf[3];
+  unsigned char c;
 
   while ('\n' != ctx->buf[ctx->i]) {
     switch ((unsigned char) ctx->buf[ctx->i]) {
@@ -93,16 +92,12 @@ encode_text(struct Context *ctx)
         ctx->i += 2;
         break;
       case '<':
-        start = ctx->i;
-        do {
-          ctx->i++;
-        } while (' ' != ctx->buf[ctx->i] && '>' != ctx->buf[ctx->i]);
-
-        if (!strncmp(ctx->buf + start, "<br>", 4)) {
+        if (!strncmp(ctx->buf + ctx->i, "<br>", 4)) {
+          ctx->i += 4;
           vec_push(&ctx->dat, "\x0a");
           vec_push(&ctx->dat, "\x00");
-          ctx->i++;
-        } else if (!strncmp(ctx->buf + start, "<bin", 4)) {
+        } else if (!strncmp(ctx->buf + ctx->i, "<bin", 4)) {
+          ctx->i += 4;
           while ('>' != ctx->buf[ctx->i]) {
             buf[0] = ctx->buf[ctx->i + 1];
             buf[1] = ctx->buf[ctx->i + 2];
@@ -143,7 +138,7 @@ encode(void *in, void *out)
   size_t i, start, total_size, inf_size, dat_size;
   struct Message msg;
 
-  while (NULL != fgets(ctx.buf, 256, in)) {
+  while (NULL != fgets(ctx.buf, 1024, in)) {
     ctx.i = 0;
     msg.flags = encode_flags(&ctx);
 
@@ -153,8 +148,17 @@ encode(void *in, void *out)
     vec_push(&ctx.inf, &msg);
   }
 
-  dat_size = ctx.dat.vec_size + 22;
+  dat_size = ctx.dat.vec_size + 6;
+  if (dat_size % 16) {
+    dat_size += 16 - (dat_size % 16);
+  } else {
+    dat_size += 16;
+  }
+
   inf_size = ctx.inf.vec_size * 8 + 32;
+  if (ctx.inf.vec_size % 2) {
+    inf_size += 8;
+  }
   total_size = dat_size + inf_size + 32;
 
   fwrite("MESGbmg1", 1, 8, out);
@@ -178,7 +182,6 @@ encode(void *in, void *out)
   fwrite(buf, 1, 3, out);
 
   start = 0;
-  c = 0;
   for (i = 0; i < ctx.inf.vec_size; i++) {
     msg = *((struct Message *) vec_get(&ctx.inf, i));
     write_int(buf, start, 4);
@@ -187,29 +190,20 @@ encode(void *in, void *out)
     fwrite(buf, 1, 4, out);
 
     start += msg.end - msg.start;
-    c = (c + 1) % 2;
   }
-  for (i = 0; i < 24; i++) { buf[i] = 0; }
-  fwrite(buf, 1, c ? 24 : 16, out);
+  for (i = 0; i < 32; i++) { buf[i] = 0; }
+  fwrite(buf, 1, inf_size - ctx.inf.vec_size * 8 - 16, out);
 
   fwrite("DAT1", 1, 4, out);
   write_int(buf, dat_size, 4);
   fwrite(buf, 1, 4, out);
 
-  c = 8;
   for (i = 0; i < ctx.inf.vec_size; i++) {
     msg = *((struct Message *) vec_get(&ctx.inf, i));
     fwrite(ctx.dat.ptr + msg.start, 1, msg.end - msg.start, out);
-    c = (c + msg.end - msg.start) % 16;
   }
-
-  for (i = 0; i < 16; i++) { buf[i] = 0; }
-
-  c = (16 - c) % 16;
-  if (c) {
-    fwrite(buf, 1, c, out);
-  }
-  fwrite(buf, 1, 16, out);
+  for (i = 0; i < 32; i++) { buf[i] = 0; }
+  fwrite(buf, 1, dat_size - ctx.dat.vec_size - 8, out);
 
   free(ctx.inf.ptr);
   free(ctx.dat.ptr);
