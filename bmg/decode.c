@@ -124,6 +124,9 @@ decode_dat_section(struct Context *ctx, struct InfSection inf)
           }
           fprintf(ctx->out, ">");
           continue;
+        case 0xcb:
+          fprintf(ctx->out, "<bin cb %02x>", (unsigned char) ctx->buf[msg_i + 1]);
+          break;
         default:
           if ((unsigned char) ctx->buf[msg_i] >= 0xe0 && (unsigned char) ctx->buf[msg_i] <= 0xff) {
             fputc(0xc3, ctx->out);
