@@ -280,7 +280,10 @@ encode(void *in, void *out)
   if (ctx.inf.vec_size % 2) {
     inf_size += 8;
   }
-  flw_size = ctx.flw_instructions.vec_size * ctx.flw_instructions.elem_size + ctx.flw_labels.vec_size * 3 + 16;
+  flw_size = ctx.flw_instructions.vec_size * 8 + ctx.flw_labels.vec_size * 3 + 16;
+  if (flw_size % 32) {
+    flw_size += 32 - (flw_size % 32);
+  }
   fli_size = ctx.fli.vec_size * 8 + 16;
   if (fli_size % 32) {
     fli_size += 32 - (fli_size % 32);
@@ -355,6 +358,9 @@ encode(void *in, void *out)
       write_int(buf, (*((struct FlwLabel *) vec_get(&ctx.flw_labels, i))).id, 1);
       fwrite(buf, 1, 1, out);
     }
+
+    for (i = 0; i < 64; i++) { buf[i] = 0; }
+    fwrite(buf, 1, flw_size - (ctx.flw_instructions.vec_size * 8 + ctx.flw_labels.vec_size * 3 + 16), out);
 
     fwrite("FLI1", 1, 4, out);
     write_int(buf, fli_size, 4);
