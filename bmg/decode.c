@@ -29,6 +29,7 @@ struct InfSection {
 };
 
 struct FlwSection {
+  unsigned int section_size;
   unsigned short instruction_count;
   unsigned short label_count;
 };
@@ -151,15 +152,16 @@ decode_flw_section(struct Context *ctx)
   unsigned char id;
 
   fread(ctx->buf, 1, 16, ctx->in);
+  res.section_size = (unsigned int) read_int(ctx->buf + 4, 4);
   res.instruction_count = (unsigned short) read_int(ctx->buf + 8, 2);
   res.label_count = (unsigned short) read_int(ctx->buf + 10, 2);
 
-  if (ctx->buf_capacity <= res.instruction_count * 8 + res.label_count * 3) {
-    ctx->buf_capacity = res.instruction_count * 8 + res.label_count * 3;
+  if (ctx->buf_capacity <= res.section_size - 16) {
+    ctx->buf_capacity = res.section_size - 16;
     ctx->buf = realloc(ctx->buf, ctx->buf_capacity);
   }
 
-  fread(ctx->buf, 1, res.instruction_count * 8 + res.label_count * 3, ctx->in);
+  fread(ctx->buf, 1, res.section_size - 16, ctx->in);
   for (i = 0; i < res.instruction_count; i++) {
     instruction = read_int(ctx->buf + i * 8, 8);
     fprintf(ctx->out, "%ld\n", instruction);
@@ -168,7 +170,7 @@ decode_flw_section(struct Context *ctx)
   fprintf(ctx->out, "\n");
 
   for (i = 0; i < res.label_count; i++) {
-    label = (unsigned short) read_int(ctx->buf + res.instruction_count * 8 + i, 2);
+    label = (unsigned short) read_int(ctx->buf + res.instruction_count * 8 + i * 2, 2);
     id = (unsigned char) read_int(ctx->buf + res.instruction_count * 8 + res.label_count * 2 + i, 1);
     fprintf(ctx->out, "%d %d\n", label, id);
   }
