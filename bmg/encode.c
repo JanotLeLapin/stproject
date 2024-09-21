@@ -15,12 +15,19 @@ struct Message {
   size_t end;
 };
 
+struct FlwLabel {
+  unsigned short index;
+  unsigned char id;
+};
+
 struct Context {
   FILE *in, *out;
   size_t i;
   char buf[1024];
   struct Vec inf;
   struct Vec dat;
+  struct Vec flw_instructions;
+  struct Vec flw_labels;
 };
 
 struct Vec
@@ -139,6 +146,58 @@ encode_text(struct Context *ctx)
 }
 
 void
+write_flw(struct Context *ctx)
+{
+  size_t i, j;
+  char entry_buf[64];
+  unsigned long entry;
+  struct FlwLabel label;
+
+  while (1) {
+    fgets(ctx->buf, 1024, ctx->in);
+    if ('\n' == ctx->buf[0]) {
+      break;
+    }
+
+    i = 0;
+    while ('\n' != ctx->buf[i]) {
+      entry_buf[i] = ctx->buf[i];
+      i++;
+    }
+    entry_buf[i] = '\0';
+
+    entry = strtol(ctx->buf, NULL, 10);
+    vec_push(&ctx->flw_instructions, &entry);
+  }
+
+  while (1) {
+    fgets(ctx->buf, 1024, ctx->in);
+    if ('\n' == ctx->buf[0]) {
+      break;
+    }
+
+    i = 0;
+    while (' ' != ctx->buf[i]) {
+      entry_buf[i] = ctx->buf[i];
+      i++;
+    }
+    entry_buf[i] = '\0';
+    label.index = (unsigned short) strtol(entry_buf, NULL, 10);
+
+    i++;
+    j = i;
+    while ('\n' != ctx->buf[i]) {
+      entry_buf[i - j] = ctx->buf[i];
+      i++;
+    }
+    entry_buf[i - j] = '\0';
+    label.id = (unsigned char) strtol(entry_buf, NULL, 10);
+
+    vec_push(&ctx->flw_labels, &label);
+  }
+}
+
+void
 encode(void *in, void *out)
 {
   struct Context ctx = {
@@ -146,17 +205,24 @@ encode(void *in, void *out)
     .out = out,
     .inf = new_vec(256, sizeof(struct Message)),
     .dat = new_vec(1024, 1),
+    .flw_instructions = new_vec(512, 8),
+    .flw_labels = new_vec(512, sizeof(struct FlwLabel)),
   };
   char buf[256];
   char c;
   unsigned int file_id;
-  size_t i, start, total_size, inf_size, dat_size;
+  size_t i, start, total_size, inf_size, dat_size, flw_size;
   struct Message msg;
 
   fgets(ctx.buf, 1024, in);
   file_id = encode_file_id(&ctx);
   fgets(ctx.buf, 1024, in);
   while (NULL != fgets(ctx.buf, 1024, in)) {
+    if ('\n' == ctx.buf[0]) {
+      write_flw(&ctx);
+      break;
+    }
+
     ctx.i = 0;
     msg.flags = encode_flags(&ctx);
 
@@ -177,7 +243,8 @@ encode(void *in, void *out)
   if (ctx.inf.vec_size % 2) {
     inf_size += 8;
   }
-  total_size = dat_size + inf_size + 32;
+  flw_size = ctx.flw_instructions.vec_size * ctx.flw_instructions.elem_size + ctx.flw_labels.vec_size * 3 + 16;
+  total_size = dat_size + inf_size + flw_size + 32;
 
   fwrite("MESGbmg1", 1, 8, out);
   write_int(buf, total_size, 4);
@@ -222,6 +289,35 @@ encode(void *in, void *out)
   for (i = 0; i < 32; i++) { buf[i] = 0; }
   fwrite(buf, 1, dat_size - ctx.dat.vec_size - 8, out);
 
+  if (ctx.flw_instructions.vec_size || ctx.flw_labels.vec_size) {
+    fwrite("FLW1", 1, 4, out);
+    write_int(buf, flw_size, 4);
+    fwrite(buf, 1, 4, out);
+    write_int(buf, ctx.flw_instructions.vec_size, 2);
+    fwrite(buf, 1, 2, out);
+    write_int(buf, ctx.flw_labels.vec_size, 2);
+    fwrite(buf, 1, 2, out);
+    for (i = 0; i < 4; i++) { buf[i] = 0; }
+    fwrite(buf, 1, 4, out);
+
+    for (i = 0; i < ctx.flw_instructions.vec_size; i++) {
+      write_int(buf, *((unsigned long *) vec_get(&ctx.flw_instructions, i)), 8);
+      fwrite(buf, 1, 8, out);
+    }
+
+    for (i = 0; i < ctx.flw_labels.vec_size; i++) {
+      write_int(buf, (*((struct FlwLabel *) vec_get(&ctx.flw_labels, i))).index, 2);
+      fwrite(buf, 1, 2, out);
+    }
+
+    for (i = 0; i < ctx.flw_labels.vec_size; i++) {
+      write_int(buf, (*((struct FlwLabel *) vec_get(&ctx.flw_labels, i))).id, 1);
+      fwrite(buf, 1, 1, out);
+    }
+  }
+
   free(ctx.inf.ptr);
   free(ctx.dat.ptr);
+  free(ctx.flw_instructions.ptr);
+  free(ctx.flw_labels.ptr);
 }
