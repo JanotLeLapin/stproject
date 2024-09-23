@@ -34,6 +34,7 @@ enum BmgDecodeResult bmg_decode(struct BmgFile *out, void *file);
 void bmg_free_file(struct BmgFile *bmg);
 
 struct BmgInfEntry bmg_get_inf_entry(struct BmgFile *bmg, unsigned short idx);
+void bmg_get_dat_entry(struct BmgFile *file, size_t idx, char *res, size_t res_len);
 unsigned long bmg_get_flw_instruction(struct BmgFile *bmg, unsigned short idx);
 unsigned short bmg_get_flw_label(struct BmgFile *bmg, unsigned short idx);
 unsigned char bmg_get_flw_id(struct BmgFile *bmg, unsigned short idx);

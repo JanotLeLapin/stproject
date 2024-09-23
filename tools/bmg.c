@@ -23,7 +23,7 @@ read_int(char *buf, char bytes)
   char i;
 
   for (i = 0; i < bytes; i++) {
-    res |= ((long) (unsigned char) buf[i]) << (8 * i);
+    res |= ((unsigned long) (unsigned char) buf[i]) << (8 * i);
   }
 
   return res;
@@ -116,6 +116,55 @@ bmg_get_inf_entry(struct BmgFile *bmg, unsigned short idx)
   inf.attributes = read_int(ptr + INF_INDEX_SIZE, INF_ATTRIBUTES_SIZE);
 
   return inf;
+}
+
+void
+bmg_get_dat_entry(struct BmgFile *bmg, size_t idx, char *res, size_t res_len)
+{
+  size_t buf_i = bmg->dat_offset + idx, res_i = 0;
+  unsigned char c;
+
+  while (res_i < res_len - 1) {
+    c = bmg->buf[buf_i];
+    if (!c) {
+      break;
+    }
+
+    switch (c) {
+      case 0x0a:
+        res[res_i] = '\n';
+        res_i++;
+        buf_i += 2;
+        break;
+      case 0x1a:
+        memcpy(res + res_i, "<bin", 4);
+        res_i += 4;
+        size_t until = bmg->buf[buf_i + 2] + buf_i;
+        while (buf_i < until) {
+          snprintf(res + res_i, 4, " %02x", (unsigned char) bmg->buf[buf_i]);
+          res_i += 3;
+          buf_i++;
+        }
+        res[res_i] = '>';
+        res_i++;
+        break;
+      default:
+        if (c >= 0xc0 && c <= 0xff) {
+          res[res_i] = 0xc3;
+          res[res_i + 1] = c - 64;
+          res_i += 2;
+          buf_i += 2;
+          break;
+        }
+
+        res[res_i] = c;
+        res_i++;
+        buf_i += 2;
+        break;
+    }
+  }
+
+  res[res_i] = '\0';
 }
 
 unsigned long
