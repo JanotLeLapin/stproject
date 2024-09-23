@@ -19,6 +19,7 @@
     devShells = eachSystem ({ pkgs, ... }: { default = pkgs.callPackage ./shell.nix {}; });
     packages = eachSystem ({ pkgs, ... }: rec {
       bmg = pkgs.callPackage ./bmg {};
+      tools = pkgs.callPackage ./tools {};
 
       extract = pkgs.callPackage ./extract.nix { stproject-rom = originalRom; };
       disassemble = pkgs.callPackage ./disassemble.nix {
