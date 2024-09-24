@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -103,6 +104,56 @@ decode_bmg(FILE *in, FILE *out)
   return 0;
 }
 
+static int
+encode_bmg(FILE *in, FILE *out)
+{
+  char line[256], in_message = 0, breaks = 0, start;
+  struct Vec inf_vec = vec_init(512, sizeof(struct BmgInfEntry)), dat_vec = vec_init(2048, 1);
+  struct BmgInfEntry inf;
+  size_t i, len;
+
+  while (fgets(line, sizeof(line), in)) {
+    if ('\n' == line[0]) {
+      breaks++;
+      if (1 == breaks) {
+        vec_append(&dat_vec, line, 1);
+      } else if (2 == breaks) {
+        char null = 0;
+        vec_append(&dat_vec, &null, 1);
+        in_message = 0;
+      } else if (3 == breaks) {
+        break;
+      }
+      continue;
+    }
+
+    breaks = 0;
+    if (!in_message) {
+      inf.attributes = strtol(line, NULL, 10);
+      inf.index = dat_vec.vec_size;
+      vec_append(&inf_vec, &inf, 1);
+      in_message = 1;
+      start = 1;
+      while (' ' != line[start - 1]) {
+        start++;
+      }
+    } else {
+      start = 0;
+    }
+
+    vec_append(&dat_vec, line + start, strlen(line) - start);
+  }
+
+  for (i = 0; i < inf_vec.vec_size; i++) {
+    printf("'%s'\n", (char *) vec_get(&dat_vec, ((struct BmgInfEntry *) vec_get(&inf_vec, i))->index));
+  }
+
+  vec_free(&inf_vec);
+  vec_free(&dat_vec);
+  
+  return 0;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -137,8 +188,9 @@ main(int argc, char **argv)
   }
 
   if (!strncmp("bmg", argv[1], 3)) {
-    if (encode) {}
-    else {
+    if (encode) {
+      return encode_bmg(in, out);
+    } else {
       return decode_bmg(in, out);
     }
   } else {

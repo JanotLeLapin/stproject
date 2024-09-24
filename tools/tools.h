@@ -1,3 +1,16 @@
+/* UTIL */
+struct Vec {
+  void *ptr;
+  size_t elem_size;
+  size_t vec_size;
+  size_t vec_capacity;
+};
+
+struct Vec vec_init(size_t initial_capacity, size_t elem_size);
+void *vec_get(struct Vec *vec, size_t idx);
+void *vec_append(struct Vec *vec, void *elems, size_t elem_count);
+void vec_free(struct Vec *vec);
+
 /* BMG */
 enum BmgDecodeResult {
   BMG_DECODE_OK = 0,

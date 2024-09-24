@@ -10,6 +10,6 @@
 
   buildPhase = ''
     mkdir -p $out/bin
-    gcc tools.c bmg.c -o $out/bin/stproject-tools
+    gcc tools.c util.c bmg.c -o $out/bin/stproject-tools
   '';
 }
