@@ -76,6 +76,7 @@ decode_bmg(FILE *in, FILE *out)
     fprintf(out, "%d %s\n\n\n", inf_entry.attributes, dat_entry);
   }
 
+  fprintf(out, "\n");
   for (i = 0; i < bmg.flw_instruction_count; i++) {
     flw_instruction = bmg_get_flw_instruction(&bmg, i);
     fprintf(out, "%ld\n", (unsigned long) flw_instruction);
