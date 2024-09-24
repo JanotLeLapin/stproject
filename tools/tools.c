@@ -1,6 +1,7 @@
-#include "tools.h"
-
+#include <stdint.h>
 #include <stdio.h>
+
+#include "tools.h"
 
 int
 main(void)
@@ -71,6 +72,26 @@ main(void)
     bmg_get_dat_entry(&bmg, inf_entry.index, dat_entry, 1024);
 
     printf("%d %s\n\n\n", inf_entry.attributes, dat_entry);
+  }
+
+  for (i = 0; i < bmg.flw_instruction_count; i++) {
+    flw_instruction = bmg_get_flw_instruction(&bmg, i);
+    printf("%ld ", (unsigned long) flw_instruction);
+  }
+
+  printf("\n\n");
+
+  for (i = 0; i < bmg.flw_label_count; i++) {
+    flw_label = bmg_get_flw_label(&bmg, i);
+    flw_id = bmg_get_flw_id(&bmg, i);
+    printf("(%d, %d) ", flw_id, flw_label);
+  }
+
+  printf("\n\n");
+
+  for (i = 0; i < bmg.fli_entry_count; i++) {
+    fli_entry = bmg_get_fli_entry(&bmg, i);
+    printf("(%d, %d) ", fli_entry.id, fli_entry.index);
   }
 
   bmg_free_file(&bmg);
