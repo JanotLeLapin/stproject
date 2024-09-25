@@ -124,8 +124,8 @@ bmg_get_dat_entry(struct BmgFile *bmg, size_t idx, char *res, size_t res_len)
 
     switch (c) {
       case 0x0a:
-        res[res_i] = '\n';
-        res_i++;
+        memcpy(res + res_i, "<br>", 4);
+        res_i += 4;
         buf_i += 2;
         break;
       case 0x1a:
@@ -187,4 +187,37 @@ bmg_get_fli_entry(struct BmgFile *bmg, unsigned short idx)
   struct BmgFliEntry res;
   memcpy(&res, bmg->buf + bmg->fli_offset + idx * FLI_ENTRY_SIZE, sizeof(struct BmgFliEntry));
   return res;
+}
+
+void
+bmg_put_dat_entry(struct Vec *dest, const char *src, size_t src_len)
+{
+  size_t i;
+  unsigned char c;
+  uint16_t v;
+
+  while (i < src_len) {
+    if (!strncmp("<br>", src + i, 4)) {
+      vec_append(dest, "\x0a\x00", 2);
+      i += 4;
+    } else if (!strncmp("<bin", src + i, 4)) {
+      i += 4;
+      while ('>' != src[i]) {
+        v = strtol(src + i, NULL, 16);
+        vec_append(dest, &v, 1);
+        i += 3;
+      }
+      i++;
+    } else if (0xc3 == (unsigned char) src[i]) {
+      v = ((unsigned char) src[i + 1]) + 64;
+      vec_append(dest, &v, 2);
+      i += 2;
+    } else {
+      v = src[i];
+      vec_append(dest, &v, 2);
+      i++;
+    }
+  }
+
+  vec_append(dest, "\x00\x00", 2);
 }

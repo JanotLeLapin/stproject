@@ -73,8 +73,7 @@ decode_bmg(FILE *in, FILE *out)
   for (i = 0; i < bmg.inf_entry_count; i++) {
     inf_entry = bmg_get_inf_entry(&bmg, i);
     bmg_get_dat_entry(&bmg, inf_entry.index, dat_entry, 1024);
-
-    fprintf(out, "%d %s\n\n\n", inf_entry.attributes, dat_entry);
+    fprintf(out, "%d %s\n", inf_entry.attributes, dat_entry);
   }
 
   fprintf(out, "\n");
@@ -107,7 +106,7 @@ decode_bmg(FILE *in, FILE *out)
 static int
 encode_bmg(FILE *in, FILE *out)
 {
-  char line[256], *the_break_line = "\n\n\n\n", in_message = 0, breaks = 0, start;
+  char buf[1024], null_buf[64], start;
   struct Vec
     inf_vec = vec_init(512, sizeof(struct BmgInfEntry)),
     dat_vec = vec_init(1024, 1),
@@ -120,84 +119,86 @@ encode_bmg(FILE *in, FILE *out)
   uint16_t flw_label;
   uint8_t flw_id;
   struct BmgFliEntry fli;
-  size_t i;
+  size_t i, dat_size;
 
-  while (fgets(line, sizeof(line), in)) {
-    if ('\n' == line[0]) {
-      breaks++;
-      if (2 == breaks) {
-        char null = 0;
-        vec_append(&dat_vec, &null, 1);
-        in_message = 0;
-      } else if (3 == breaks) {
-        break;
-      }
-      continue;
-    }
-
-    if (breaks) {
-      vec_append(&dat_vec, the_break_line, breaks);
-      breaks = 0;
-    }
-
-    if (!in_message) {
-      inf.attributes = strtol(line, NULL, 10);
-      inf.index = dat_vec.vec_size;
-      vec_append(&inf_vec, &inf, 1);
-      in_message = 1;
-      start = 1;
-      while (' ' != line[start - 1]) {
-        start++;
-      }
-    } else {
-      vec_append(&dat_vec, the_break_line, 1);
-      start = 0;
-    }
-
-    vec_append(&dat_vec, line + start, strlen(line) - 1 - start);
+  for (i = 0; i < sizeof(null_buf); i++) {
+    null_buf[i] = 0;
   }
 
-  while (fgets(line, sizeof(line), in)) {
-    if ('\n' == line[0]) {
+  vec_append(&dat_vec, "\x00\x00", 2);
+  while (fgets(buf, sizeof(buf), in)) {
+    if ('\n' == buf[0]) {
       break;
     }
 
-    flw_instruction = strtol(line, NULL, 10);
+    inf.attributes = strtol(buf, NULL, 10);
+    i = 1;
+    while (' ' != buf[i - 1]) {
+      i++;
+    }
+
+    // printf("%ld, %ld\n", i, strlen(buf) - 1 - i);
+    if (1 == strlen(buf) - i) {
+      inf.index = 0;
+      vec_append(&inf_vec, &inf, 1);
+    } else {
+      inf.index = dat_vec.vec_size;
+      vec_append(&inf_vec, &inf, 1);
+      bmg_put_dat_entry(&dat_vec, buf + i, strlen(buf) - 1 - i);
+    }
+  }
+
+  while (fgets(buf, sizeof(buf), in)) {
+    if ('\n' == buf[0]) {
+      break;
+    }
+
+    flw_instruction = strtol(buf, NULL, 10);
     vec_append(&flw_instruction_vec, &flw_instruction, 1);
   }
 
-  while (fgets(line, sizeof(line), in)) {
+  while (fgets(buf, sizeof(buf), in)) {
     i = 0;
 
-    if ('\n' == line[0]) {
+    if ('\n' == buf[0]) {
       break;
     }
 
-    flw_id = strtol(line + 1, NULL, 10);
-    while (',' != line[i]) {
+    flw_id = strtol(buf + 1, NULL, 10);
+    while (',' != buf[i]) {
       i++;
     }
-    flw_label = strtol(line + i + 2, NULL, 10);
+    flw_label = strtol(buf + i + 2, NULL, 10);
 
     vec_append(&flw_id_vec, &flw_id, 1);
     vec_append(&flw_labels_vec, &flw_label, 1);
   }
 
-  while (fgets(line, sizeof(line), in)) {
+  while (fgets(buf, sizeof(buf), in)) {
     i = 0;
 
-    if ('\n' == line[0]) {
+    if ('\n' == buf[0]) {
       break;
     }
 
-    fli.id = strtol(line + 1, NULL, 10);
-    while (',' != line[i]) {
+    fli.id = strtol(buf + 1, NULL, 10);
+    while (',' != buf[i]) {
       i++;
     }
-    fli.index = strtol(line + i + 2, NULL, 10);
+    fli.index = strtol(buf + i + 2, NULL, 10);
 
     vec_append(&fli_vec, &fli, 1);
   }
+
+  dat_size = dat_vec.vec_size + 8;
+  if (dat_size % 32) {
+    dat_size += 32 - (dat_size % 32);
+  }
+  memcpy(buf, "DAT1", 4);
+  memcpy(buf + 4, &dat_size, 4);
+  fwrite(buf, 1, 8, out);
+  fwrite(dat_vec.ptr, 1, dat_vec.vec_size, out);
+  fwrite(null_buf, 1, dat_size - dat_vec.vec_size - 8, out);
 
   vec_free(&inf_vec);
   vec_free(&dat_vec);
@@ -208,7 +209,7 @@ encode_bmg(FILE *in, FILE *out)
 
   fclose(in);
   fclose(out);
-  
+
   return 0;
 }
 

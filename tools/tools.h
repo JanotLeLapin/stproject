@@ -55,3 +55,5 @@ uint64_t bmg_get_flw_instruction(struct BmgFile *bmg, uint16_t idx);
 uint16_t bmg_get_flw_label(struct BmgFile *bmg, uint16_t idx);
 uint8_t bmg_get_flw_id(struct BmgFile *bmg, uint16_t idx);
 struct BmgFliEntry bmg_get_fli_entry(struct BmgFile *bmg, uint16_t idx);
+
+void bmg_put_dat_entry(struct Vec *dest, const char *src, size_t src_len);
