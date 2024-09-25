@@ -119,7 +119,7 @@ encode_bmg(FILE *in, FILE *out)
   uint16_t flw_label;
   uint8_t flw_id;
   struct BmgFliEntry fli;
-  size_t i, dat_size;
+  size_t i, inf_size, inf_size_pad, dat_size, dat_size_pad, flw_size, flw_size_pad, fli_size, fli_size_pad, total_size;
 
   for (i = 0; i < sizeof(null_buf); i++) {
     null_buf[i] = 0;
@@ -137,7 +137,6 @@ encode_bmg(FILE *in, FILE *out)
       i++;
     }
 
-    // printf("%ld, %ld\n", i, strlen(buf) - 1 - i);
     if (1 == strlen(buf) - i) {
       inf.index = 0;
       vec_append(&inf_vec, &inf, 1);
@@ -190,15 +189,91 @@ encode_bmg(FILE *in, FILE *out)
     vec_append(&fli_vec, &fli, 1);
   }
 
-  dat_size = dat_vec.vec_size + 8;
-  if (dat_size % 32) {
-    dat_size += 32 - (dat_size % 32);
+  inf_size = inf_vec.vec_size * 8;
+  inf_size_pad = inf_size + 16;
+  if (inf_size_pad % 32) {
+    inf_size_pad += 32 - (inf_size_pad % 32);
   }
+
+  dat_size = dat_vec.vec_size;
+  dat_size_pad = dat_size + 8;
+  if (dat_size_pad % 32) {
+    dat_size_pad += 32 - (dat_size_pad % 32);
+  }
+
+  flw_size = flw_instruction_vec.vec_size * 8 + flw_labels_vec.vec_size * 3;
+  flw_size_pad = flw_size + 16;
+  if (flw_size_pad % 32) {
+    flw_size_pad += 32 - (flw_size_pad % 32);
+  }
+
+  fli_size = fli_vec.vec_size * 8;
+  fli_size_pad = fli_size + 16;
+  if (fli_size_pad % 32) {
+    fli_size_pad += 32 - (fli_size_pad % 32);
+  }
+
+  total_size = dat_size_pad + inf_size_pad + flw_size_pad + fli_size_pad + 32;
+
+  memcpy(buf, "MESGbmg1", 8);
+  memcpy(buf + 8, &total_size, 4);
+  memcpy(buf + 12, "\x04\x00\x00\x00", 4);
+  memcpy(buf + 16, "\x02\x00\x00\x00", 4);
+  memcpy(buf + 18, null_buf, 14);
+  fwrite(buf, 1, 32, out);
+
+  memcpy(buf, "INF1", 4);
+  memcpy(buf + 4, &inf_size_pad, 4);
+  memcpy(buf + 8, &inf_vec.vec_size, 2);
+  memcpy(buf + 10, &inf_vec.elem_size, 2);
+  memcpy(buf + 12, "\x0c", 4);
+  memcpy(buf + 14, null_buf, 2);
+  fwrite(buf, 1, 16, out);
+
+  for (i = 0; i < inf_vec.vec_size; i++) {
+    inf = *((struct BmgInfEntry *) vec_get(&inf_vec, i));
+    memcpy(buf, &inf.index, 4);
+    memcpy(buf + 4, &inf.attributes, 4);
+    fwrite(buf, 1, 8, out);
+  }
+  fwrite(null_buf, 1, inf_size_pad - inf_size - 16, out);
+
   memcpy(buf, "DAT1", 4);
-  memcpy(buf + 4, &dat_size, 4);
+  memcpy(buf + 4, &dat_size_pad, 4);
   fwrite(buf, 1, 8, out);
   fwrite(dat_vec.ptr, 1, dat_vec.vec_size, out);
-  fwrite(null_buf, 1, dat_size - dat_vec.vec_size - 8, out);
+  fwrite(null_buf, 1, dat_size_pad - dat_size - 8, out);
+
+  memcpy(buf, "FLW1", 4);
+  memcpy(buf + 4, &flw_size_pad, 4);
+  memcpy(buf + 8, &flw_instruction_vec.vec_size, 2);
+  memcpy(buf + 10, &flw_labels_vec.vec_size, 2);
+  memcpy(buf + 12, null_buf, 4);
+  fwrite(buf, 1, 16, out);
+  for (i = 0; i < flw_instruction_vec.vec_size; i++) {
+    fwrite((uint64_t *) vec_get(&flw_instruction_vec, i), 1, 8, out);
+  }
+  for (i = 0; i < flw_labels_vec.vec_size; i++) {
+    fwrite((uint16_t *) vec_get(&flw_labels_vec, i), 1, 2, out);
+  }
+  for (i = 0; i < flw_id_vec.vec_size; i++) {
+    fwrite((uint8_t *) vec_get(&flw_id_vec, i), 1, 1, out);
+  }
+  fwrite(null_buf, 1, flw_size_pad - flw_size - 16, out);
+
+  memcpy(buf, "FLI1", 4);
+  memcpy(buf + 4, &fli_size_pad, 4);
+  memcpy(buf + 8, &fli_vec.vec_size, 2);
+  memcpy(buf + 10, "\x08\x00", 2);
+  memcpy(buf + 12, null_buf, 4);
+  fwrite(buf, 1, 16, out);
+  for (i = 0; i < fli_vec.vec_size; i++) {
+    fli = *((struct BmgFliEntry *) vec_get(&fli_vec, i));
+    memcpy(buf, &fli.id, 4);
+    memcpy(buf + 4, &fli.index, 2);
+    memcpy(buf + 6, "\x00\x00", 2);
+    fwrite(buf, 1, 8, out);
+  }
 
   vec_free(&inf_vec);
   vec_free(&dat_vec);
