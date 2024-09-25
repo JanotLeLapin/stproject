@@ -18,18 +18,17 @@
   in {
     devShells = eachSystem ({ pkgs, ... }: { default = pkgs.callPackage ./shell.nix {}; });
     packages = eachSystem ({ pkgs, ... }: rec {
-      bmg = pkgs.callPackage ./bmg {};
       tools = pkgs.callPackage ./tools {};
 
       extract = pkgs.callPackage ./extract.nix { stproject-rom = originalRom; };
       disassemble = pkgs.callPackage ./disassemble.nix {
         stproject-extract = extract;
-        stproject-bmg = bmg;
+        stproject-tools = tools;
       };
       patch = pkgs.callPackage ./patch.nix { stproject-disassemble = disassemble; };
       reassemble = pkgs.callPackage ./reassemble.nix {
         stproject-patch= patch;
-        stproject-bmg = bmg;
+        stproject-tools = tools;
       };
       bundle = pkgs.callPackage ./bundle.nix {
         stproject-extract = extract;

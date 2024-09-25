@@ -2,7 +2,9 @@
 , stproject-reassemble
 , ndstool
 , stdenv
-}: stdenv.mkDerivation {
+}: let
+  copy = file: dir: "cp ${dir}/data/French/Message/${file}.bmg data/French/Message/${file}.bmg";
+in stdenv.mkDerivation {
   name = "stproject-bundle";
   version = "0.1";
 
@@ -11,8 +13,7 @@
   nativeBuildInputs = [ ndstool ];
 
   buildPhase = ''
-    cp ${stproject-reassemble}/data/French/Message/battle_parent.bmg data/French/Message/battle_parent.bmg
-    cp ${stproject-reassemble}/data/French/Message/battle_common.bmg data/French/Message/battle_common.bmg
+    ${copy "castle_town" stproject-reassemble}
 
     mkdir -p $out
     ndstool -c $out/rom.nds \

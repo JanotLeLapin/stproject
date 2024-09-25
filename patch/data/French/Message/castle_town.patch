@@ -1,0 +1,11 @@
+--- castle_town.txt	2024-09-25 14:48:53.501113300 +0200
++++ castle_town_patched.txt	2024-09-25 15:10:28.767557862 +0200
+@@ -47,7 +47,7 @@
+ 16777422 D'accord... Je ne te force<br>pas!<br><br>Allez, retourne pleurer dans<br>les jupes de ta mère!
+ 16777422 Veux-tu que je t'explique<br>à nouveau?<br><bin 1a 00 06 00 00 00>Oui!<bin 1a 00 06 00 01 00>Ça ira
+ 16777422 Les règles sont très simples!<br>Je vais ouvrir cette porte<br>pour te laisser entrer.<br>C'est un endroit terrifiant<br>qui grouille de monstres!<br><br>Tu devras tous les vaincre<br>et sortir du palais sain et<br>sauf.<br>Mais attention! Il n'y aura<br>aucun objet te permettant<br>de te soigner.<br>Et dans certains endroits,<br>il te sera impossible de te<br>servir de certaines armes.<br>Tu dois être extrêmement<br>prudent ou ce sera la fin!<br><br>Alors, veux-tu t'essayer à<br>l'assaut incessant?<br><bin 1a 00 06 00 00 00>Oui!<bin 1a 00 06 00 01 00>Non...
+-16777422 Hé, p'tit gars... C'est pas<br>un endroit pour les gamins,<br>ici.<br>Retourne dans les jupes de<br>ta mère!
++16777422 Eh <bin 1a 00 06 fe 00 00>, tu veux<br>pas venir fumer du<br><bin 1a 00 08 ff 00 00 01 00>crack<bin 1a 00 08 ff 00 00 00 00> avec moi?
+ 16777422 Te revoilà, jeune homme!<br>Tu sembles plus courageux<br>que la dernière fois!<br>Tu pourrais peut-être<br>tenter le deuxième niveau<br>de l'assaut incessant!<br>Tu devras y affronter des<br>ennemis plus redoutables<br>que dans le premier niveau!<br>Alors, quel niveau veux-tu<br>tenter?<br><bin 1a 00 06 00 00 00>Premier<bin 1a 00 06 00 01 00>Deuxième<bin 1a 00 06 00 02 00>Aucun
+ 16777422 Tu veux te frotter à<br>l'assaut incessant, gamin?<br><br>Quel niveau veux-tu<br>tenter?<br><bin 1a 00 06 00 00 00>Niveau 1<bin 1a 00 06 00 01 00>Niveau 2<bin 1a 00 06 00 02 00>Aucun
+ 16777422 La porte du deuxième<br>niveau est celle de gauche!<br><br>Plonge dans le monde<br>de l'assaut incessant!<br><br>Et ne reviens pas en<br>pleurnichant parce que<br>tu te seras fait battre!

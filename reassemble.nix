@@ -1,20 +1,19 @@
 { stproject-patch
-, stproject-bmg
+, stproject-tools
 , stdenv
 }: let
-  encode = file: "stproject-bmg encode $out/data/French/Message/${file}.bmg < data/French/Message/${file}";
+  encode = file: "stproject-tools bmg encode data/French/Message/${file} $out/data/French/Message/${file}.bmg";
 in stdenv.mkDerivation {
   name = "stproject-reassemble";
   version = "0.1";
 
   src = stproject-patch;
 
-  nativeBuildInputs = [ stproject-bmg ];
+  nativeBuildInputs = [ stproject-tools ];
 
   buildPhase = ''
     mkdir -p $out/data/French/Message
 
-    ${encode "battle_parent"}
-    ${encode "battle_common"}
+    ${encode "castle_town"}
   '';
 }
